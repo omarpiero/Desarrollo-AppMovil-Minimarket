@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../models/producto.dart';
+import '../widgets/producto_imagen.dart';
 
 class CarritoScreen extends StatelessWidget {
   final List<Map<String, dynamic>> carrito;
@@ -87,19 +88,12 @@ class CarritoScreen extends StatelessWidget {
                     padding: const EdgeInsets.all(12),
                     child: Row(
                       children: [
-                        // Ícono de producto
-                        Container(
+                        // Imagen del producto
+                        ProductoImagen(
+                          imagenUrl: producto.imagenUrl,
                           width: 48,
                           height: 48,
-                          decoration: BoxDecoration(
-                            color: MinimarketTheme.primaryYellowSurface,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.inventory_2_rounded,
-                            color: MinimarketTheme.primaryYellowDark,
-                            size: 24,
-                          ),
+                          borderRadius: 10,
                         ),
                         const SizedBox(width: 12),
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../models/producto.dart';
+import 'producto_imagen.dart';
 
 class ProductoCard extends StatelessWidget {
   final Producto producto;
@@ -56,6 +57,15 @@ class ProductoCard extends StatelessWidget {
                     const SizedBox(width: 4),
                     _buildEstadoBadge(),
                   ],
+                ),
+                const SizedBox(height: 8),
+
+                // ─── Imagen del producto ───
+                ProductoImagen(
+                  imagenUrl: producto.imagenUrl,
+                  width: double.infinity,
+                  height: 92,
+                  borderRadius: 10,
                 ),
                 const SizedBox(height: 8),
 

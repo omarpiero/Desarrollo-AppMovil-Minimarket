@@ -8,6 +8,7 @@ class Producto {
   final double precio;
   final int stock;
   final bool disponible;
+  final String imagenUrl;
 
   const Producto({
     required this.id,
@@ -17,6 +18,7 @@ class Producto {
     required this.precio,
     this.stock = 0,
     this.disponible = true,
+    this.imagenUrl = '',
   });
 
   /// Crea un Producto desde un DocumentSnapshot de Firestore.
@@ -30,6 +32,7 @@ class Producto {
       precio: (data['precio'] ?? 0).toDouble(),
       stock: (data['stock'] ?? 0).toInt(),
       disponible: data['disponible'] ?? true,
+      imagenUrl: data['imagenUrl'] ?? '',
     );
   }
 
@@ -42,6 +45,7 @@ class Producto {
       'precio': precio,
       'stock': stock,
       'disponible': disponible,
+      'imagenUrl': imagenUrl,
     };
   }
 
@@ -54,6 +58,7 @@ class Producto {
     double? precio,
     int? stock,
     bool? disponible,
+    String? imagenUrl,
   }) {
     return Producto(
       id: id ?? this.id,
@@ -63,6 +68,7 @@ class Producto {
       precio: precio ?? this.precio,
       stock: stock ?? this.stock,
       disponible: disponible ?? this.disponible,
+      imagenUrl: imagenUrl ?? this.imagenUrl,
     );
   }
 
@@ -74,5 +80,5 @@ class Producto {
 
   @override
   String toString() =>
-      'Producto(id: $id, nombre: $nombre, precio: $precio, stock: $stock, disponible: $disponible)';
+      'Producto(id: $id, nombre: $nombre, precio: $precio, stock: $stock, disponible: $disponible, imagenUrl: $imagenUrl)';
 }

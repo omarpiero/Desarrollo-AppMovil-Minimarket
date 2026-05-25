@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../models/producto.dart';
+import 'producto_imagen.dart';
 
 class ProductoDetalle extends StatefulWidget {
   final Producto producto;
@@ -69,6 +70,15 @@ class _ProductoDetalleState extends State<ProductoDetalle> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ─── Imagen del producto ───
+                ProductoImagen(
+                  imagenUrl: producto.imagenUrl,
+                  width: double.infinity,
+                  height: 180,
+                  borderRadius: 18,
+                ),
+                const SizedBox(height: 16),
+
                 // ─── Header: Categoría + Estado + Cerrar ───
                 Row(
                   children: [

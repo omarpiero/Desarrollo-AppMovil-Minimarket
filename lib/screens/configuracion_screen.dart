@@ -16,6 +16,8 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   bool _cargandoListar = false;
   bool _cargandoAgregar = false;
   bool _cargandoEliminar = false;
+  bool _cargandoImagenPrueba = false;
+  bool _cargandoImagenesProductos = false;
 
   // ─── SEED ───
   Future<void> _cargarProductosIniciales() async {
@@ -127,6 +129,64 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     );
   }
 
+
+  // ─── IMAGEN DE PRUEBA ───
+  Future<void> _asignarImagenIncaKolaPrueba() async {
+    setState(() => _cargandoImagenPrueba = true);
+    try {
+      final actualizado = await _firestoreService.asignarImagenIncaKolaPrueba();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(actualizado
+              ? '✅ Imagen de prueba asignada a Inca Kola.'
+              : '⚠️ No se encontró el producto Inca Kola en Firestore.'),
+          backgroundColor: actualizado
+              ? MinimarketTheme.disponible
+              : MinimarketTheme.warning,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error: $e'),
+          backgroundColor: MinimarketTheme.error,
+        ),
+      );
+    }
+    setState(() => _cargandoImagenPrueba = false);
+  }
+
+
+  // ─── IMÁGENES DE PRODUCTOS ───
+  Future<void> _asignarImagenesProductos() async {
+    setState(() => _cargandoImagenesProductos = true);
+    try {
+      final actualizados = await _firestoreService.asignarImagenesProductosPrueba();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(actualizados > 0
+              ? '✅ Se asignaron imágenes a $actualizados productos.'
+              : '⚠️ No se actualizaron productos. Puede que ya tengan sus imágenes.'),
+          backgroundColor: actualizados > 0
+              ? MinimarketTheme.disponible
+              : MinimarketTheme.warning,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error: $e'),
+          backgroundColor: MinimarketTheme.error,
+        ),
+      );
+    }
+    setState(() => _cargandoImagenesProductos = false);
+  }
+
   // ─── AGREGAR PRUEBA ───
   Future<void> _agregarProductoPrueba() async {
     setState(() => _cargandoAgregar = true);
@@ -139,6 +199,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
         precio: 9.99,
         stock: 10,
         disponible: true,
+        imagenUrl: '',
       );
       final id = await _firestoreService.agregarProducto(producto);
       if (!mounted) return;
@@ -273,6 +334,44 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                           _cargandoSeed ? 'Cargando...' : 'Cargar Datasheet'),
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _cargandoImagenesProductos
+                          ? null
+                          : _asignarImagenesProductos,
+                      icon: _cargandoImagenesProductos
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.image_rounded),
+                      label: Text(_cargandoImagenesProductos
+                          ? 'Asignando imágenes...'
+                          : 'Asignar imágenes Cloudinary a productos'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _cargandoImagenPrueba
+                          ? null
+                          : _asignarImagenIncaKolaPrueba,
+                      icon: _cargandoImagenPrueba
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.image_rounded),
+                      label: Text(_cargandoImagenPrueba
+                          ? 'Asignando imagen...'
+                          : 'Asignar imagen prueba a Inca Kola'),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -349,6 +448,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                   _buildInfoRow('Proyecto', 'Minimarket App'),
                   _buildInfoRow('Base de Datos', 'Cloud Firestore'),
                   _buildInfoRow('Colección', 'productos'),
+                  _buildInfoRow('Campo imagen', 'imagenUrl'),
                   _buildInfoRow('Versión', '1.0.0 (MVP)'),
                 ],
               ),

@@ -1,6 +1,53 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/producto.dart';
 
+const String imagenIncaKolaPrueba =
+    'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779212420/20109402_nsr6uj.webp';
+
+const Map<String, String> imagenesProductosPrueba = {
+  'Gaseosa INCA KOLA sin Azúcar Botella 300ml': imagenIncaKolaPrueba,
+  'Leche Reconstituida Entera GLORIA Lata 390g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779485738/leche_sycetv.webp',
+  'Fideos DON VITTORIO Spaghetti Bolsa 500g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779485738/don_victorio_nsaidi.webp',
+  'Aceite Vegetal PRIMOR Clásico Botella 900ml': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779485738/aceite_primor_ns2fsq.webp',
+  'Arroz Extra COSTEÑO Bolsa 1Kg': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779485738/arroz_coste%C3%B1a_vgwuev.webp',
+  'Lenteja Bebé Costeño Bolsa 500g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486467/LENTEJA-BEBE-X-500-GRS-COSTE-O-1-366083_j4obwm.webp',
+  'Fideos ANITA Codito Bolsa 250g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486467/322624_fmej3c.webp',
+  'Colorante PANCA SIN PICANTE Sibarita Sobre 10g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486467/bb75757fd62cd5fb9868e70a3cdb6f53_q11f6f.jpg',
+  'Pimienta Sibarita Sobre 10g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486467/1701804852819_1701804847311_1701804847075_dhxgma.png',
+  'Caldo de Gallina MAGGI Cubito': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486467/sin_titulo-removebg-preview0265_mtdio9.png',
+  'Sazonador AJINOMOTO Sobre 50g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486467/ajinomoto_kqnxos.jpg',
+  'Vinagre Tinto BULNES Botella 500ml': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486468/7791720035993_01_dh6evf.webp',
+  'Sillao KIKKO Botella Plástica 250ml': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486468/409125-800-auto_l1g9q1.webp',
+  'Pasta de Tomate POMAROLA Sobre 145g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486468/20284370_zxdfwx.webp',
+  'Salsa de Ají TARÍ Doypack 85g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486468/20039446_bs9ynp.webp',
+  'Mostaza ALACENA Doypack 100g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486468/20112945_dlag6b.webp',
+  "Ketchup LIBBY'S Doypack 100g": 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486468/118110_jlepqq.webp',
+  'Mayonesa ALACENA Doypack 95g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486468/20057318_w32ysr.webp',
+  'Duraznos en Mitades ACONCAGUA Lata 820g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486468/Duraznos-en-Almibar-Aconcagua-820g_wjhurt.webp',
+  'Filete de Caballa CAMPOMAR Lata 170g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486468/IMG-2258_1200x1200_vshva5.webp',
+  'Atún en Aceite FLORIDA Lata 170g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486469/957951_peanpk.webp',
+  'Huevos de Gallina Pardos LA CALERA Plancha x 30': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486469/20138032_mrbba7.webp',
+  'Yogurt BATIMIX GLORIA Vainilla con Hojuelas 145g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486469/w_800_h_800_fit_pad_2_b1ucqv.webp',
+  'Yogurt Bebible GLORIA Fresa Botella 1Kg': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486469/20326320_owzjqp.webp',
+  'Queso Fresco Pasteurizado BONLÉ Molde 250g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486469/w_800_h_800_fit_pad_1_fgzdwj.webp',
+  'Queso Edam LAIVE Tajadas Paquete 150g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486469/20147402_tx6ukr.webp',
+  'Margarina MANTY Clásica Pote 225g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486470/7750243052054_avao4t.webp',
+  'Mantequilla GLORIA con Sal Pote 200g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486470/918175_a9kfqt.webp',
+  'Chifles KARINTO Bolsa 45g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486470/w_1500_h_1500_fit_cover_ysd20h.webp',
+  'Papas Fritas LAYS Clásicas Bolsa 36g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486470/20352713_utggqv.webp',
+  'Tortillas de Maíz CUATES Picantes Bolsa 40g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486470/953473128847_wmyamtfrogmc_391917896934_zkwjbixvhsga_51774_1_ldbged.jpg',
+  'Galletas DOÑA PEPA Paquete 23g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486470/580535-800-auto_cdfrxd.webp',
+  'Galletas MOROCHAS Nestlé Paquete 30g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486471/7613035963948_5d17a937-ba96-4518-b348-3c6b17e56f82_i9a2i5.webp',
+  'Galletas CASINO Fresa Paquete 43g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486471/579283-800-auto_ctwb6a.webp',
+  'Galletas RITZ Taco 67g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486471/1596228249-63-nabisco-ritz-taco-jpg_u5xhyb.jpg',
+  'Galletas Soda FIELD Paquete 6x34g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486471/bolsa-de-galletas-soda-A_700x700_d7mcyi.webp',
+  'Cacao en polvo MILO Sobre 18g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486471/w_800_h_800_fit_pad_xz1oeg.webp',
+  'Café Tostado y Molido CAFETAL Sobre 50g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486471/7754308000172_wvekmi.webp',
+  'Avena Clásica SANTA CATALINA Bolsa 100g': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486471/avena_pdbcnr.webp',
+  'Azúcar Rubia CARTAVIO Bolsa 1Kg': 'https://res.cloudinary.com/dznotodst/image/upload/q_auto/f_auto/v1779486472/cartavio_n1cruq.webp',
+};
+
+
 class FirestoreService {
   final CollectionReference _productosRef =
       FirebaseFirestore.instance.collection('productos');
@@ -31,6 +78,79 @@ class FirestoreService {
     await _productosRef.doc(id).delete();
   }
 
+  // ─── UPDATE IMAGEN DE PRUEBA ───
+  /// Asigna la URL de imagen de prueba al primer producto Inca Kola encontrado.
+  Future<bool> asignarImagenIncaKolaPrueba() async {
+    final snapshot = await _productosRef
+        .where('nombre', isGreaterThanOrEqualTo: 'Gaseosa INCA KOLA')
+        .where('nombre', isLessThan: 'Gaseosa INCA KOLA\uf8ff')
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      return false;
+    }
+
+    await snapshot.docs.first.reference.update({
+      'imagenUrl': imagenIncaKolaPrueba,
+    });
+    return true;
+  }
+
+
+  // ─── UPDATE IMÁGENES DE PRODUCTOS ───
+  /// Asigna las URLs de Cloudinary a todos los productos encontrados en Firestore.
+  /// Retorna la cantidad de documentos actualizados.
+  Future<int> asignarImagenesProductosPrueba() async {
+    final snapshot = await _productosRef.get();
+    if (snapshot.docs.isEmpty) return 0;
+
+    final batch = FirebaseFirestore.instance.batch();
+    int actualizados = 0;
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final nombre = (data['nombre'] ?? '').toString();
+      final imagenUrl = _buscarImagenPorNombre(nombre);
+
+      if (imagenUrl.isNotEmpty && data['imagenUrl'] != imagenUrl) {
+        batch.update(doc.reference, {'imagenUrl': imagenUrl});
+        actualizados++;
+      }
+    }
+
+    if (actualizados > 0) {
+      await batch.commit();
+    }
+    return actualizados;
+  }
+
+  static String _normalizarNombre(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ñ', 'n')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  static String _buscarImagenPorNombre(String nombreProducto) {
+    final nombreNormalizado = _normalizarNombre(nombreProducto);
+    for (final entry in imagenesProductosPrueba.entries) {
+      final keyNormalizado = _normalizarNombre(entry.key);
+      if (nombreNormalizado == keyNormalizado ||
+          nombreNormalizado.contains(keyNormalizado) ||
+          keyNormalizado.contains(nombreNormalizado)) {
+        return entry.value;
+      }
+    }
+    return '';
+  }
+
   // ─── SEED ───
   /// Carga los productos iniciales del datasheet a Firestore.
   /// Verifica si ya existen productos para no duplicar.
@@ -46,7 +166,14 @@ class FirestoreService {
 
     for (final item in _datosIniciales) {
       final docRef = _productosRef.doc();
-      batch.set(docRef, item);
+      final itemConImagen = Map<String, dynamic>.from(item);
+      final imagenUrl = _buscarImagenPorNombre(
+        (itemConImagen['nombre'] ?? '').toString(),
+      );
+      if (imagenUrl.isNotEmpty) {
+        itemConImagen['imagenUrl'] = imagenUrl;
+      }
+      batch.set(docRef, itemConImagen);
       count++;
     }
 
@@ -56,7 +183,7 @@ class FirestoreService {
 
   // ─── DATOS INICIALES (85 productos del datasheet) ───
   static final List<Map<String, dynamic>> _datosIniciales = [
-    {'nombre': 'Gaseosa INCA KOLA sin Azúcar Botella 300ml (Pack de 6)', 'descripcion': 'Bebida gaseosa personal sin azúcar en paquete de 6 unidades, ideal para stock de bodega.', 'categoria': 'Bebidas / Gaseosas', 'precio': 8.50, 'stock': 25, 'disponible': true},
+    {'nombre': 'Gaseosa INCA KOLA sin Azúcar Botella 300ml (Pack de 6)', 'descripcion': 'Bebida gaseosa personal sin azúcar en paquete de 6 unidades, ideal para stock de bodega.', 'categoria': 'Bebidas / Gaseosas', 'precio': 8.50, 'stock': 25, 'disponible': true, 'imagenUrl': imagenIncaKolaPrueba},
     {'nombre': 'Leche Reconstituida Entera GLORIA Lata 390g', 'descripcion': 'Leche evaporada tradicional en lata grande, un producto básico para el desayuno.', 'categoria': 'Lácteos / Leche', 'precio': 4.20, 'stock': 40, 'disponible': true},
     {'nombre': 'Fideos DON VITTORIO Spaghetti Bolsa 500g', 'descripcion': 'Fideos largos clásicos de trigo, presentación estándar para venta al por menor.', 'categoria': 'Abarrotes / Pastas', 'precio': 3.10, 'stock': 35, 'disponible': true},
     {'nombre': 'Aceite Vegetal PRIMOR Clásico Botella 900ml', 'descripcion': 'Aceite de uso diario en envase personal, indispensable en cualquier cocina.', 'categoria': 'Abarrotes / Aceites', 'precio': 9.70, 'stock': 20, 'disponible': true},

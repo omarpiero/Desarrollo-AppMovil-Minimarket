@@ -5,6 +5,7 @@ import '../widgets/carrito_badge.dart';
 import 'productos_screen.dart';
 import 'carrito_screen.dart';
 import 'configuracion_screen.dart';
+import 'ubicacion_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,6 +16,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  bool _ubicacionMontada = false;
 
   // Carrito compartido entre pantallas
   final List<Map<String, dynamic>> _carrito = [];
@@ -68,6 +70,8 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return 'Mi Carrito';
       case 2:
+        return 'Cómo llegar';
+      case 3:
         return 'Configuración';
       default:
         return 'Minimarket';
@@ -103,12 +107,19 @@ class _HomeScreenState extends State<HomeScreen> {
             onEliminar: _eliminarDelCarrito,
             onCambiarCantidad: _cambiarCantidad,
           ),
+          if (_ubicacionMontada)
+            UbicacionScreen(activa: _currentIndex == 2)
+          else
+            const SizedBox.shrink(),
           const ConfiguracionScreen(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: (index) => setState(() {
+          if (index == 2) _ubicacionMontada = true;
+          _currentIndex = index;
+        }),
         items: [
           const BottomNavigationBarItem(
             icon: Icon(Icons.store_rounded),
@@ -148,6 +159,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             label: 'Carrito',
+          ),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.map_rounded),
+            activeIcon: Icon(Icons.map_rounded),
+            label: 'Ubicación',
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.settings_rounded),
