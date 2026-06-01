@@ -22,6 +22,14 @@ class DeliveryService {
     return snapshot.docs.map((doc) => Pedido.fromFirestore(doc)).toList();
   }
 
+  /// Obtiene los pedidos de un usuario específico ordenados por fecha descendente.
+  Future<List<Pedido>> obtenerPedidosPorUsuario(String userId) async {
+    final snapshot = await _pedidosRef.where('userId', isEqualTo: userId).get();
+    final list = snapshot.docs.map((doc) => Pedido.fromFirestore(doc)).toList();
+    list.sort((a, b) => b.creadoEn.compareTo(a.creadoEn));
+    return list;
+  }
+
   /// Obtiene un pedido por su ID.
   Future<Pedido?> obtenerPedidoPorId(String id) async {
     final doc = await _pedidosRef.doc(id).get();

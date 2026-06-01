@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 import '../config/theme.dart';
 import '../models/pedido.dart';
 import '../services/delivery_service.dart';
 import 'seguimiento_screen.dart';
+import 'login_screen.dart';
 
 class HistorialPedidosScreen extends StatefulWidget {
   const HistorialPedidosScreen({super.key});
@@ -16,11 +19,20 @@ class _HistorialPedidosScreenState extends State<HistorialPedidosScreen> {
   List<Pedido>? _pedidos;
   bool _cargando = true;
   String? _error;
+  StreamSubscription<User?>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
-    _cargarPedidos();
+    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
+      _cargarPedidos();
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _cargarPedidos() async {
@@ -29,11 +41,19 @@ class _HistorialPedidosScreenState extends State<HistorialPedidosScreen> {
       _error = null;
     });
     try {
-      final pedidos = await _service.obtenerPedidos();
-      setState(() {
-        _pedidos = pedidos;
-        _cargando = false;
-      });
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final pedidos = await _service.obtenerPedidosPorUsuario(user.uid);
+        setState(() {
+          _pedidos = pedidos;
+          _cargando = false;
+        });
+      } else {
+        setState(() {
+          _pedidos = [];
+          _cargando = false;
+        });
+      }
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -44,15 +64,17 @@ class _HistorialPedidosScreenState extends State<HistorialPedidosScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mis Pedidos'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _cargarPedidos,
-            tooltip: 'Actualizar',
-          ),
+          if (user != null)
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded),
+              onPressed: _cargarPedidos,
+              tooltip: 'Actualizar',
+            ),
         ],
       ),
       body: _buildBody(),
@@ -60,6 +82,60 @@ class _HistorialPedidosScreenState extends State<HistorialPedidosScreen> {
   }
 
   Widget _buildBody() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.moped_rounded,
+                size: 80,
+                color: MinimarketTheme.divider,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Inicia sesión para ver tus pedidos',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: MinimarketTheme.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Podrás realizar el seguimiento de tus compras y ver tu historial de pedidos.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: MinimarketTheme.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const LoginScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text('INICIAR SESIÓN'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (_cargando) {
       return const Center(child: CircularProgressIndicator());
     }

@@ -1,3 +1,5 @@
+// lib/models/pedido.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'producto.dart';
 
@@ -118,6 +120,7 @@ class ItemPedido {
 
 class Pedido {
   final String id;
+  final String userId; // ──> NUEVO: ID del cliente de Firebase Auth
   final List<ItemPedido> items;
   final String nombreCliente;
   final String telefono;
@@ -126,6 +129,9 @@ class Pedido {
   final String metodoPago;
   final double total;
   final double costoDelivery;
+  final double descuentoAplicado; // ──> NUEVO: Descuento en soles por canje
+  final int puntosUtilizados;     // ──> NUEVO: Puntos gastados en este pedido
+  final int puntosGanados;         // ──> NUEVO: Puntos que otorga esta compra
   final EstadoPedido estado;
   final DateTime creadoEn;
   final DateTime? actualizadoEn;
@@ -133,6 +139,7 @@ class Pedido {
 
   const Pedido({
     required this.id,
+    required this.userId, // ──> NUEVO
     required this.items,
     required this.nombreCliente,
     required this.telefono,
@@ -141,15 +148,20 @@ class Pedido {
     required this.metodoPago,
     required this.total,
     required this.costoDelivery,
+    this.descuentoAplicado = 0.0, // ──> NUEVO (por defecto 0)
+    this.puntosUtilizados = 0,    // ──> NUEVO (por defecto 0)
+    this.puntosGanados = 0,       // ──> NUEVO (por defecto 0)
     required this.estado,
     required this.creadoEn,
     this.actualizadoEn,
     this.notasAdicionales,
   });
 
-  double get totalConDelivery => total + costoDelivery;
+  // Modificado: Ahora resta el descuento aplicado de los puntos al total final
+  double get totalConDelivery => (total + costoDelivery) - descuentoAplicado;
 
   Map<String, dynamic> toMap() => {
+        'userId': userId, // ──> NUEVO
         'items': items.map((i) => i.toMap()).toList(),
         'nombreCliente': nombreCliente,
         'telefono': telefono,
@@ -158,6 +170,9 @@ class Pedido {
         'metodoPago': metodoPago,
         'total': total,
         'costoDelivery': costoDelivery,
+        'descuentoAplicado': descuentoAplicado, // ──> NUEVO
+        'puntosUtilizados': puntosUtilizados,   // ──> NUEVO
+        'puntosGanados': puntosGanados,         // ──> NUEVO
         'estado': estado.name,
         'creadoEn': Timestamp.fromDate(creadoEn),
         'actualizadoEn':
@@ -173,6 +188,7 @@ class Pedido {
 
     return Pedido(
       id: doc.id,
+      userId: data['userId'] ?? '', // ──> NUEVO
       items: itemsList,
       nombreCliente: data['nombreCliente'] ?? '',
       telefono: data['telefono'] ?? '',
@@ -181,6 +197,9 @@ class Pedido {
       metodoPago: data['metodoPago'] ?? 'efectivo',
       total: (data['total'] ?? 0).toDouble(),
       costoDelivery: (data['costoDelivery'] ?? 0).toDouble(),
+      descuentoAplicado: (data['descuentoAplicado'] ?? 0).toDouble(), // ──> NUEVO
+      puntosUtilizados: (data['puntosUtilizados'] ?? 0).toInt(),       // ──> NUEVO
+      puntosGanados: (data['puntosGanados'] ?? 0).toInt(),             // ──> NUEVO
       estado: EstadoPedidoExt.fromString(data['estado'] ?? 'pendiente'),
       creadoEn: (data['creadoEn'] as Timestamp?)?.toDate() ?? DateTime.now(),
       actualizadoEn: (data['actualizadoEn'] as Timestamp?)?.toDate(),
@@ -191,6 +210,7 @@ class Pedido {
   Pedido copyWith({EstadoPedido? estado, DateTime? actualizadoEn}) {
     return Pedido(
       id: id,
+      userId: userId, // Mantiene el actual
       items: items,
       nombreCliente: nombreCliente,
       telefono: telefono,
@@ -199,6 +219,9 @@ class Pedido {
       metodoPago: metodoPago,
       total: total,
       costoDelivery: costoDelivery,
+      descuentoAplicado: descuentoAplicado, // Mantiene el actual
+      puntosUtilizados: puntosUtilizados,   // Mantiene el actual
+      puntosGanados: puntosGanados,         // Mantiene el actual
       estado: estado ?? this.estado,
       creadoEn: creadoEn,
       actualizadoEn: actualizadoEn ?? this.actualizadoEn,

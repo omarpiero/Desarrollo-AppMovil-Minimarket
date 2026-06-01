@@ -1,4 +1,9 @@
+
+// lib/screens/checkout_screen.dart
+
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; 
+import 'package:cloud_firestore/cloud_firestore.dart'; 
 import '../config/theme.dart';
 import '../models/pedido.dart';
 import '../models/producto.dart';
@@ -31,7 +36,52 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String _metodoPago = 'efectivo';
   bool _enviando = false;
 
+  int _puntosDisponibles = 0;
+  bool _aplicarDescuento = false;
+  final double _conversionPuntosASoles = 20.0; 
+  final double _puntosPorSolGanado = 1.0;      
+
   final DeliveryService _deliveryService = DeliveryService();
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarPuntosUsuario();
+  }
+
+  Future<void> _cargarPuntosUsuario() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final querySnapshot = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .where('uid', isEqualTo: user.uid)
+            .limit(1)
+            .get();
+        if (querySnapshot.docs.isNotEmpty) {
+          final userDoc = querySnapshot.docs.first;
+          final data = userDoc.data();
+          setState(() {
+            _puntosDisponibles = data['puntosAcumulados'] ?? 0;
+            if (_nombreController.text.isEmpty) {
+              _nombreController.text = data['nombreCompleto'] ?? '';
+            }
+            if (_telefonoController.text.isEmpty) {
+              _telefonoController.text = data['telefono'] ?? '';
+            }
+            if (_direccionController.text.isEmpty) {
+              _direccionController.text = data['direccion'] ?? '';
+            }
+            if (_referenciaController.text.isEmpty) {
+              _referenciaController.text = data['referencia'] ?? '';
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error al cargar puntos: $e');
+    }
+  }
 
   double get _subtotal {
     double total = 0;
@@ -43,7 +93,30 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   double get _costoDelivery => DeliveryService.calcularCostoDelivery(_subtotal);
-  double get _total => _subtotal + _costoDelivery;
+  
+  int get _puntosAUtilizar {
+    if (!_aplicarDescuento) return 0;
+    int puntosEquivalentesAlSubtotal = (_subtotal * _conversionPuntosASoles).toInt();
+    if (_puntosDisponibles > puntosEquivalentesAlSubtotal) {
+      return puntosEquivalentesAlSubtotal;
+    }
+    return _puntosDisponibles;
+  }
+
+  double get _descuentoSoles {
+    return _puntosAUtilizar / _conversionPuntosASoles;
+  }
+
+  int get _puntosAGanar {
+    double subtotalFinal = _subtotal - _descuentoSoles;
+    if (subtotalFinal < 0) subtotalFinal = 0;
+    return (subtotalFinal * _puntosPorSolGanado).toInt();
+  }
+
+  double get _total {
+    double resultado = (_subtotal + _costoDelivery) - _descuentoSoles;
+    return resultado < 0 ? 0.0 : resultado;
+  }
 
   @override
   void dispose() {
@@ -61,6 +134,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() => _enviando = true);
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      final userId = user?.uid ?? 'anonimo';
+
       final items = widget.carrito.map((item) {
         final producto = item['producto'] as Producto;
         final cantidad = item['cantidad'] as int;
@@ -69,6 +145,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       final pedido = Pedido(
         id: '',
+        userId: userId, 
         items: items,
         nombreCliente: _nombreController.text.trim(),
         telefono: _telefonoController.text.trim(),
@@ -77,6 +154,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         metodoPago: _metodoPago,
         total: _subtotal,
         costoDelivery: _costoDelivery,
+        descuentoAplicado: _descuentoSoles, 
+        puntosUtilizados: _puntosAUtilizar,   
+        puntosGanados: _puntosAGanar,         
         estado: EstadoPedido.pendiente,
         creadoEn: DateTime.now(),
         notasAdicionales: _notasController.text.trim().isEmpty
@@ -85,6 +165,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       );
 
       final pedidoId = await _deliveryService.crearPedido(pedido);
+
+      if (user != null && (_puntosAUtilizar > 0 || _puntosAGanar > 0)) {
+        final querySnapshot = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .where('uid', isEqualTo: user.uid)
+            .limit(1)
+            .get();
+        if (querySnapshot.docs.isNotEmpty) {
+          final userRef = querySnapshot.docs.first.reference;
+          await FirebaseFirestore.instance.runTransaction((transaction) async {
+            final snapshot = await transaction.get(userRef);
+            if (snapshot.exists) {
+              int puntosActuales = snapshot.data()?['puntosAcumulados'] ?? 0;
+              int nuevosPuntos = puntosActuales - _puntosAUtilizar + _puntosAGanar;
+              if (nuevosPuntos < 0) nuevosPuntos = 0;
+              
+              transaction.update(userRef, {'puntosAcumulados': nuevosPuntos});
+            }
+          });
+        }
+      }
 
       if (!mounted) return;
       widget.onPedidoConfirmado();
@@ -102,7 +203,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           backgroundColor: MinimarketTheme.error,
         ),
       );
-    } finally {
+    } finally { 
       if (mounted) setState(() => _enviando = false);
     }
   }
@@ -122,7 +223,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ─── Resumen del pedido ───
             _SectionTitle(title: 'Resumen del pedido', icon: Icons.receipt_rounded),
             const SizedBox(height: 8),
             ...widget.carrito.map((item) {
@@ -134,18 +234,54 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               );
             }),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
-            // ─── Totales ───
+            if (_puntosDisponibles >= 20) ...[
+              _SectionTitle(title: 'Club Caserito', icon: Icons.stars_rounded),
+              const SizedBox(height: 8),
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: MinimarketTheme.primaryYellow),
+                ),
+                color: MinimarketTheme.primaryYellowSurface.withValues(alpha: 0.4),
+                child: SwitchListTile(
+                  title: const Text(
+                    '¿Usar tus puntos?',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: MinimarketTheme.secondaryNavy,
+                      fontSize: 14,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Tienes $_puntosDisponibles puntos.\nCanjea $_puntosAUtilizar puntos por un dscto. de S/ ${_descuentoSoles.toStringAsFixed(2)}',
+                    style: const TextStyle(fontSize: 12, color: MinimarketTheme.textSecondary),
+                  ),
+                  isThreeLine: true,
+                  value: _aplicarDescuento,
+                  activeColor: MinimarketTheme.secondaryNavy,
+                  onChanged: (bool value) {
+                    setState(() {
+                      _aplicarDescuento = value;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             _TotalesCard(
               subtotal: _subtotal,
               costoDelivery: _costoDelivery,
+              descuento: _descuentoSoles, 
+              puntosAGanar: _puntosAGanar, 
               total: _total,
             ),
 
             const SizedBox(height: 20),
 
-            // ─── Datos de entrega ───
             _SectionTitle(title: 'Datos de entrega', icon: Icons.location_on_rounded),
             const SizedBox(height: 12),
 
@@ -199,7 +335,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
             const SizedBox(height: 20),
 
-            // ─── Método de pago ───
             _SectionTitle(title: 'Método de pago', icon: Icons.payment_rounded),
             const SizedBox(height: 12),
 
@@ -210,7 +345,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
             const SizedBox(height: 28),
 
-            // ─── Botón confirmar ───
             SizedBox(
               width: double.infinity,
               height: 52,
@@ -240,8 +374,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 }
-
-// ─── Widgets internos ───
 
 class _SectionTitle extends StatelessWidget {
   final String title;
@@ -322,11 +454,15 @@ class _ItemResumen extends StatelessWidget {
 class _TotalesCard extends StatelessWidget {
   final double subtotal;
   final double costoDelivery;
+  final double descuento;
+  final int puntosAGanar;
   final double total;
 
   const _TotalesCard({
     required this.subtotal,
     required this.costoDelivery,
+    required this.descuento,
+    required this.puntosAGanar,
     required this.total,
   });
 
@@ -348,6 +484,16 @@ class _TotalesCard extends StatelessWidget {
             costoDelivery == 0 ? '¡Gratis!' : 'S/ ${costoDelivery.toStringAsFixed(2)}',
             valorColor: costoDelivery == 0 ? MinimarketTheme.success : null,
           ),
+          
+          if (descuento > 0) ...[
+            const SizedBox(height: 6),
+            _FilaTotal(
+              'Descuento por Puntos', 
+              '- S/ ${descuento.toStringAsFixed(2)}',
+              valorColor: MinimarketTheme.error,
+            ),
+          ],
+          
           if (costoDelivery > 0) ...[
             const SizedBox(height: 2),
             const Text(
@@ -363,6 +509,25 @@ class _TotalesCard extends StatelessWidget {
             valorColor: MinimarketTheme.secondaryNavy,
             fontSize: 16,
           ),
+          
+          if (puntosAGanar > 0) ...[
+            const Divider(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.add_circle_outline_rounded, size: 16, color: MinimarketTheme.success),
+                const SizedBox(width: 4),
+                Text(
+                  '¡Ganarás $puntosAGanar puntos con esta compra!',
+                  style: const TextStyle(
+                    fontSize: 12, 
+                    fontWeight: FontWeight.w600, 
+                    color: MinimarketTheme.success
+                  ),
+                ),
+              ],
+            )
+          ]
         ],
       ),
     );
