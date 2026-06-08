@@ -18,7 +18,7 @@ class MinimarketApp extends StatelessWidget {
       title: 'Minimarket',
       debugShowCheckedModeBanner: false,
       theme: MinimarketTheme.themeData,
-      home: const HomeScreen(),
+      home: HomeScreen(),
     );
   }
 }

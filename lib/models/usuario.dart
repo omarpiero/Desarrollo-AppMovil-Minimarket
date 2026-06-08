@@ -9,6 +9,8 @@ class Usuario {
   final String direccion;
   final String referencia;
   final int puntosAcumulados;
+  final double? latitud;
+  final double? longitud;
 
   const Usuario({
     required this.uid,
@@ -19,6 +21,8 @@ class Usuario {
     required this.direccion,
     required this.referencia,
     required this.puntosAcumulados,
+    this.latitud,
+    this.longitud,
   });
 
   /// Crea un Usuario desde un DocumentSnapshot de Firestore.
@@ -33,6 +37,8 @@ class Usuario {
       direccion: data['direccion'] ?? '',
       referencia: data['referencia'] ?? '',
       puntosAcumulados: (data['puntosAcumulados'] ?? 0).toInt(),
+      latitud: (data['latitud'] as num?)?.toDouble(),
+      longitud: (data['longitud'] as num?)?.toDouble(),
     );
   }
 
@@ -47,6 +53,8 @@ class Usuario {
       'direccion': direccion,
       'referencia': referencia,
       'puntosAcumulados': puntosAcumulados,
+      if (latitud != null) 'latitud': latitud,
+      if (longitud != null) 'longitud': longitud,
     };
   }
 
@@ -60,6 +68,8 @@ class Usuario {
     String? direccion,
     String? referencia,
     int? puntosAcumulados,
+    double? latitud,
+    double? longitud,
   }) {
     return Usuario(
       uid: uid ?? this.uid,
@@ -70,11 +80,13 @@ class Usuario {
       direccion: direccion ?? this.direccion,
       referencia: referencia ?? this.referencia,
       puntosAcumulados: puntosAcumulados ?? this.puntosAcumulados,
+      latitud: latitud ?? this.latitud,
+      longitud: longitud ?? this.longitud,
     );
   }
 
   @override
   String toString() {
-    return 'Usuario(uid: $uid, dni: $dni, email: $email, nombreCompleto: $nombreCompleto, telefono: $telefono, direccion: $direccion, referencia: $referencia, puntosAcumulados: $puntosAcumulados)';
+    return 'Usuario(uid: $uid, dni: $dni, email: $email, nombreCompleto: $nombreCompleto, telefono: $telefono, direccion: $direccion, referencia: $referencia, puntosAcumulados: $puntosAcumulados, latitud: $latitud, longitud: $longitud)';
   }
 }

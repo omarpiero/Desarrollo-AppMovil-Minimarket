@@ -1,25 +1,87 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/theme.dart';
 import '../models/producto.dart';
 import '../widgets/carrito_badge.dart';
 import 'productos_screen.dart';
 import 'carrito_screen.dart';
-import 'configuracion_screen.dart';
+import 'perfil_screen.dart';
 import 'ubicacion_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  static final GlobalKey<HomeScreenState> homeKey = GlobalKey<HomeScreenState>();
+  HomeScreen() : super(key: homeKey);
+
+  static void selectTab(int index) {
+    homeKey.currentState?.setSelectedTab(index);
+  }
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+
+  void setSelectedTab(int index) {
+    if (mounted) {
+      setState(() {
+        if (index == 2) _ubicacionMontada = true;
+        _currentIndex = index;
+      });
+    }
+  }
   bool _ubicacionMontada = false;
 
   // Carrito compartido entre pantallas
   final List<Map<String, dynamic>> _carrito = [];
+
+  StreamSubscription? _authSubscription;
+  StreamSubscription? _usuarioSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
+      _usuarioSub?.cancel();
+      _iniciarEscuchaUsuario();
+      if (mounted) {
+        setState(() {
+          _currentIndex = 0;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    _usuarioSub?.cancel();
+    super.dispose();
+  }
+
+  void _iniciarEscuchaUsuario() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _usuarioSub = FirebaseFirestore.instance
+          .collection('usuarios')
+          .where('uid', isEqualTo: user.uid)
+          .snapshots()
+          .listen((querySnapshot) {
+        if (mounted) {
+          setState(() {});
+        }
+      }, onError: (e) {
+        debugPrint('Error al escuchar datos de usuario en HomeScreen: $e');
+      });
+    } else {
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
 
   int get _carritoItemCount {
     int total = 0;
@@ -63,6 +125,12 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _limpiarCarrito() {
+    setState(() {
+      _carrito.clear();
+    });
+  }
+
   String get _tituloActual {
     switch (_currentIndex) {
       case 0:
@@ -72,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 2:
         return 'Cómo llegar';
       case 3:
-        return 'Configuración';
+        return 'Mi Perfil';
       default:
         return 'Minimarket';
     }
@@ -106,12 +174,13 @@ class _HomeScreenState extends State<HomeScreen> {
             carrito: _carrito,
             onEliminar: _eliminarDelCarrito,
             onCambiarCantidad: _cambiarCantidad,
+            onPedidoConfirmado: _limpiarCarrito,
           ),
           if (_ubicacionMontada)
             UbicacionScreen(activa: _currentIndex == 2)
           else
             const SizedBox.shrink(),
-          const ConfiguracionScreen(),
+          const PerfilScreen(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -166,9 +235,9 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Ubicación',
           ),
           const BottomNavigationBarItem(
-            icon: Icon(Icons.settings_rounded),
-            activeIcon: Icon(Icons.settings_rounded),
-            label: 'Config',
+            icon: Icon(Icons.person_rounded),
+            activeIcon: Icon(Icons.person_rounded),
+            label: 'Perfil',
           ),
         ],
       ),

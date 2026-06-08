@@ -9,6 +9,7 @@ class Producto {
   final int stock;
   final bool disponible;
   final String imagenUrl;
+  final double? precioOriginal; // ──> NUEVO: Campo de descuento opcional
 
   const Producto({
     required this.id,
@@ -19,6 +20,7 @@ class Producto {
     this.stock = 0,
     this.disponible = true,
     this.imagenUrl = '',
+    this.precioOriginal,
   });
 
   /// Crea un Producto desde un DocumentSnapshot de Firestore.
@@ -33,6 +35,7 @@ class Producto {
       stock: (data['stock'] ?? 0).toInt(),
       disponible: data['disponible'] ?? true,
       imagenUrl: data['imagenUrl'] ?? '',
+      precioOriginal: (data['precioOriginal'] as num?)?.toDouble(),
     );
   }
 
@@ -46,6 +49,7 @@ class Producto {
       'stock': stock,
       'disponible': disponible,
       'imagenUrl': imagenUrl,
+      if (precioOriginal != null) 'precioOriginal': precioOriginal,
     };
   }
 
@@ -59,6 +63,7 @@ class Producto {
     int? stock,
     bool? disponible,
     String? imagenUrl,
+    double? precioOriginal,
   }) {
     return Producto(
       id: id ?? this.id,
@@ -69,6 +74,7 @@ class Producto {
       stock: stock ?? this.stock,
       disponible: disponible ?? this.disponible,
       imagenUrl: imagenUrl ?? this.imagenUrl,
+      precioOriginal: precioOriginal ?? this.precioOriginal,
     );
   }
 
@@ -78,7 +84,13 @@ class Producto {
   /// Indica si el producto se puede agregar al carrito.
   bool get puedeAgregar => disponible && stock > 0;
 
+  /// Calcula el porcentaje de descuento si existe precio original.
+  int? get porcentajeDescuento {
+    if (precioOriginal == null || precioOriginal! <= precio) return null;
+    return (((precioOriginal! - precio) / precioOriginal!) * 100).round();
+  }
+
   @override
   String toString() =>
-      'Producto(id: $id, nombre: $nombre, precio: $precio, stock: $stock, disponible: $disponible, imagenUrl: $imagenUrl)';
+      'Producto(id: $id, nombre: $nombre, precio: $precio, stock: $stock, disponible: $disponible, imagenUrl: $imagenUrl, precioOriginal: $precioOriginal)';
 }

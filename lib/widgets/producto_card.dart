@@ -61,11 +61,35 @@ class ProductoCard extends StatelessWidget {
                 const SizedBox(height: 8),
 
                 // ─── Imagen del producto ───
-                ProductoImagen(
-                  imagenUrl: producto.imagenUrl,
-                  width: double.infinity,
-                  height: 92,
-                  borderRadius: 10,
+                Stack(
+                  children: [
+                    ProductoImagen(
+                      imagenUrl: producto.imagenUrl,
+                      width: double.infinity,
+                      height: 92,
+                      borderRadius: 10,
+                    ),
+                    if (producto.porcentajeDescuento != null)
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: MinimarketTheme.primaryRed,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '-${producto.porcentajeDescuento}%',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
 
@@ -89,21 +113,37 @@ class ProductoCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     // Precio
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: MinimarketTheme.primaryYellowSurface,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'S/ ${producto.precio.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: MinimarketTheme.primaryYellowDark,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (producto.precioOriginal != null && producto.precioOriginal! > producto.precio) ...[
+                          Text(
+                            'S/ ${producto.precioOriginal!.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: MinimarketTheme.textSecondary,
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                        ],
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: MinimarketTheme.primaryYellowSurface,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'S/ ${producto.precio.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: MinimarketTheme.primaryYellowDark,
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                     // Botón agregar
                     if (activo)

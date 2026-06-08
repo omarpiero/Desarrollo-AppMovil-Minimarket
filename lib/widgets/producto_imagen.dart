@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../config/theme.dart';
 
 class ProductoImagen extends StatelessWidget {
@@ -35,15 +36,13 @@ class ProductoImagen extends StatelessWidget {
       child: _tieneImagen
           ? Padding(
               padding: const EdgeInsets.all(6),
-              child: Image.network(
-                imagenUrl.trim(),
+              child: CachedNetworkImage(
+                imageUrl: imagenUrl.trim(),
                 width: double.infinity,
                 height: double.infinity,
                 alignment: Alignment.center,
                 fit: fit,
-                loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return const Center(
+                placeholder: (context, url) => const Center(
                   child: SizedBox(
                     width: 22,
                     height: 22,
@@ -52,11 +51,8 @@ class ProductoImagen extends StatelessWidget {
                       color: MinimarketTheme.secondaryNavy,
                     ),
                   ),
-                );
-              },
-                errorBuilder: (context, error, stackTrace) {
-                  return const _ImagenPlaceholder();
-                },
+                ),
+                errorWidget: (context, url, error) => const _ImagenPlaceholder(),
               ),
             )
           : const _ImagenPlaceholder(),

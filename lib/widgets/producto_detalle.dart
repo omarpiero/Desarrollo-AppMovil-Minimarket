@@ -71,11 +71,35 @@ class _ProductoDetalleState extends State<ProductoDetalle> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ─── Imagen del producto ───
-                ProductoImagen(
-                  imagenUrl: producto.imagenUrl,
-                  width: double.infinity,
-                  height: 180,
-                  borderRadius: 18,
+                Stack(
+                  children: [
+                    ProductoImagen(
+                      imagenUrl: producto.imagenUrl,
+                      width: double.infinity,
+                      height: 180,
+                      borderRadius: 18,
+                    ),
+                    if (producto.porcentajeDescuento != null)
+                      Positioned(
+                        top: 10,
+                        left: 10,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: MinimarketTheme.primaryRed,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '-${producto.porcentajeDescuento}% DTO',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 16),
 
@@ -149,11 +173,32 @@ class _ProductoDetalleState extends State<ProductoDetalle> {
                   child: Row(
                     children: [
                       Expanded(
-                        child: _buildInfoItem(
-                          Icons.monetization_on_rounded,
-                          'Precio',
-                          'S/ ${producto.precio.toStringAsFixed(2)}',
-                          MinimarketTheme.primaryYellowDark,
+                        child: Column(
+                          children: [
+                            const Icon(Icons.monetization_on_rounded, color: MinimarketTheme.primaryYellowDark, size: 22),
+                            const SizedBox(height: 4),
+                            const Text('Precio', style: TextStyle(fontSize: 11, color: MinimarketTheme.textSecondary)),
+                            const SizedBox(height: 2),
+                            if (producto.precioOriginal != null && producto.precioOriginal! > producto.precio) ...[
+                              Text(
+                                'S/ ${producto.precioOriginal!.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: MinimarketTheme.textSecondary,
+                                  decoration: TextDecoration.lineThrough,
+                                ),
+                              ),
+                            ],
+                            Text(
+                              'S/ ${producto.precio.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: MinimarketTheme.primaryYellowDark,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
                       ),
                       Container(
@@ -293,6 +338,12 @@ class _ProductoDetalleState extends State<ProductoDetalle> {
                         ScaffoldMessenger.of(context).clearSnackBars();
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
+                            behavior: SnackBarBehavior.floating,
+                            margin: EdgeInsets.only(
+                              bottom: MediaQuery.of(context).size.height - 120,
+                              left: 16,
+                              right: 16,
+                            ),
                             content: Row(
                               children: [
                                 const Icon(Icons.check_circle,

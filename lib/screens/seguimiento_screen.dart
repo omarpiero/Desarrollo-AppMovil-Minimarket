@@ -1,24 +1,88 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/theme.dart';
 import '../models/pedido.dart';
 import '../services/delivery_service.dart';
+import 'home_screen.dart';
 
-class SeguimientoScreen extends StatelessWidget {
+class SeguimientoScreen extends StatefulWidget {
   final String pedidoId;
 
   const SeguimientoScreen({super.key, required this.pedidoId});
 
   @override
-  Widget build(BuildContext context) {
-    final deliveryService = DeliveryService();
+  State<SeguimientoScreen> createState() => _SeguimientoScreenState();
+}
 
+class _SeguimientoScreenState extends State<SeguimientoScreen> {
+  Timer? _timer;
+  late final Stream<Pedido?> _pedidoStream;
+  final DeliveryService _deliveryService = DeliveryService();
+
+  @override
+  void initState() {
+    super.initState();
+    _pedidoStream = _deliveryService.streamPedido(widget.pedidoId);
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _verificarYActualizarEstadoPedido(Pedido pedido) {
+    if (pedido.estado == EstadoPedido.cancelado) {
+      return;
+    }
+    final diffInSecs = DateTime.now().difference(pedido.creadoEn).inSeconds;
+    
+    EstadoPedido targetEstado = pedido.estado;
+    if (diffInSecs >= 1200) {
+      targetEstado = EstadoPedido.entregado;
+    } else if (diffInSecs >= 900) {
+      targetEstado = EstadoPedido.enCamino;
+    } else if (diffInSecs >= 600) {
+      targetEstado = EstadoPedido.preparando;
+    } else if (diffInSecs >= 300) {
+      targetEstado = EstadoPedido.confirmado;
+    }
+
+    if (targetEstado.index > pedido.estado.index) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          await FirebaseFirestore.instance
+              .collection('pedidos')
+              .doc(pedido.id)
+              .update({
+            'estado': targetEstado.name,
+            'actualizadoEn': Timestamp.fromDate(DateTime.now()),
+          });
+        } catch (e) {
+          debugPrint('Error al actualizar estado automático del pedido: $e');
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Seguimiento de Pedido'),
         automaticallyImplyLeading: false,
         actions: [
           TextButton.icon(
-            onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+            onPressed: () {
+              HomeScreen.selectTab(0);
+              Navigator.of(context).popUntil((r) => r.isFirst);
+            },
             icon: const Icon(Icons.home_rounded, color: MinimarketTheme.primaryYellow),
             label: const Text(
               'Inicio',
@@ -28,7 +92,7 @@ class SeguimientoScreen extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<Pedido?>(
-        stream: deliveryService.streamPedido(pedidoId),
+        stream: _pedidoStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -36,11 +100,12 @@ class SeguimientoScreen extends StatelessWidget {
 
           if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
             return const Center(
-              child: Text('No se pudo cargar el pedido'),
+              child: Text('No se pudo cargar el pedido o ha sido eliminado'),
             );
           }
 
           final pedido = snapshot.data!;
+          _verificarYActualizarEstadoPedido(pedido);
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -93,17 +158,54 @@ class SeguimientoScreen extends StatelessWidget {
 
                 const SizedBox(height: 20),
 
-                if (pedido.estado == EstadoPedido.pendiente ||
-                    pedido.estado == EstadoPedido.confirmado) ...[
-                  OutlinedButton.icon(
-                    onPressed: () => _cancelarPedido(context, pedido.id, deliveryService),
-                    icon: const Icon(Icons.cancel_rounded, color: MinimarketTheme.error),
-                    label: const Text(
-                      'Cancelar pedido',
-                      style: TextStyle(color: MinimarketTheme.error),
+                if (pedido.estado == EstadoPedido.pendiente) ...[
+                  Builder(
+                    builder: (context) {
+                      final diffInSecs = DateTime.now().difference(pedido.creadoEn).inSeconds;
+                      final remainingSecs = 300 - diffInSecs;
+                      if (remainingSecs <= 0) {
+                        return const SizedBox.shrink();
+                      }
+                      
+                      final mins = remainingSecs ~/ 60;
+                      final secs = remainingSecs % 60;
+                      final timeString = '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () => _cancelarPedido(context, pedido.id, _deliveryService),
+                            icon: const Icon(Icons.cancel_rounded, color: MinimarketTheme.error),
+                            label: Text(
+                              'Cancelar pedido ($timeString)',
+                              style: const TextStyle(color: MinimarketTheme.error),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: MinimarketTheme.error),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                      );
+                    }
+                  ),
+                ],
+
+                if (pedido.estado == EstadoPedido.cancelado ||
+                    pedido.estado == EstadoPedido.entregado) ...[
+                  ElevatedButton.icon(
+                    onPressed: () => _eliminarPedido(context, pedido.id, _deliveryService),
+                    icon: const Icon(Icons.delete_forever_rounded, color: Colors.white),
+                    label: Text(
+                      pedido.estado == EstadoPedido.entregado
+                          ? 'QUITAR PEDIDO DE MI HISTORIAL'
+                          : 'ELIMINAR REGISTRO DE PEDIDO',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: MinimarketTheme.error),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: MinimarketTheme.error,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                   ),
@@ -160,7 +262,58 @@ class SeguimientoScreen extends StatelessWidget {
       final ok = await service.cancelarPedido(id);
       if (!ok && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo cancelar el pedido')),
+          const SnackBar(
+            content: Text('No se pudo cancelar el pedido. Puede haber expirado el tiempo de 5 minutos.'),
+            backgroundColor: MinimarketTheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _eliminarPedido(
+    BuildContext context,
+    String id,
+    DeliveryService service,
+  ) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('¿Quitar pedido del historial?'),
+        content: const Text(
+          'Esta acción ocultará el pedido de tu historial en la aplicación. Seguirá registrado de forma interna en nuestro sistema para fines administrativos.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: MinimarketTheme.error),
+            child: const Text('Sí, quitar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true && context.mounted) {
+      final ok = await service.eliminarPedido(id);
+      if (ok && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🗑️ Pedido quitado del historial.'),
+            backgroundColor: MinimarketTheme.primaryRed,
+          ),
+        );
+        HomeScreen.selectTab(0);
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      } else if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo quitar el pedido.'),
+            backgroundColor: MinimarketTheme.error,
+          ),
         );
       }
     }
@@ -183,7 +336,7 @@ class _EstadoHeader extends StatelessWidget {
       case EstadoPedido.enCamino:
         return MinimarketTheme.primaryYellowDark;
       default:
-        return MinimarketTheme.secondaryNavy;
+        return MinimarketTheme.primaryRed;
     }
   }
 
@@ -284,7 +437,7 @@ class _TimelineEstados extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: completado
-                            ? MinimarketTheme.secondaryNavy
+                            ? MinimarketTheme.primaryRed
                             : MinimarketTheme.divider,
                       ),
                       child: Center(
@@ -311,7 +464,7 @@ class _TimelineEstados extends StatelessWidget {
                         width: 2,
                         height: 28,
                         color: i < indiceActual
-                            ? MinimarketTheme.secondaryNavy
+                            ? MinimarketTheme.primaryRed
                             : MinimarketTheme.divider,
                       ),
                   ],
@@ -376,7 +529,7 @@ class _DetalleCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Row(
           children: [
-            Icon(icono, color: MinimarketTheme.secondaryNavy, size: 22),
+            Icon(icono, color: MinimarketTheme.primaryRed, size: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -487,7 +640,7 @@ class _TotalCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: MinimarketTheme.secondaryNavy,
+        color: MinimarketTheme.primaryRed,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(

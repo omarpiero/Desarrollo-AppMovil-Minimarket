@@ -8,7 +8,8 @@ import 'seguimiento_screen.dart';
 import 'login_screen.dart';
 
 class HistorialPedidosScreen extends StatefulWidget {
-  const HistorialPedidosScreen({super.key});
+  final bool showAppBar;
+  const HistorialPedidosScreen({super.key, this.showAppBar = true});
 
   @override
   State<HistorialPedidosScreen> createState() => _HistorialPedidosScreenState();
@@ -20,43 +21,51 @@ class _HistorialPedidosScreenState extends State<HistorialPedidosScreen> {
   bool _cargando = true;
   String? _error;
   StreamSubscription<User?>? _authSubscription;
+  StreamSubscription<List<Pedido>>? _pedidosSub;
+  DateTime? _lastUpdate;
 
   @override
   void initState() {
     super.initState();
     _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
-      _cargarPedidos();
+      _iniciarEscuchaPedidos();
     });
   }
 
   @override
   void dispose() {
     _authSubscription?.cancel();
+    _pedidosSub?.cancel();
     super.dispose();
   }
 
-  Future<void> _cargarPedidos() async {
-    setState(() {
-      _cargando = true;
-      _error = null;
-    });
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final pedidos = await _service.obtenerPedidosPorUsuario(user.uid);
-        setState(() {
-          _pedidos = pedidos;
-          _cargando = false;
-        });
-      } else {
-        setState(() {
-          _pedidos = [];
-          _cargando = false;
-        });
-      }
-    } catch (e) {
+  void _iniciarEscuchaPedidos() {
+    _pedidosSub?.cancel();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
       setState(() {
-        _error = e.toString();
+        _cargando = true;
+        _error = null;
+      });
+      _pedidosSub = _service.streamPedidosPorUsuario(user.uid).listen((pedidos) {
+        if (mounted) {
+          setState(() {
+            _pedidos = pedidos;
+            _lastUpdate = DateTime.now();
+            _cargando = false;
+          });
+        }
+      }, onError: (e) {
+        if (mounted) {
+          setState(() {
+            _error = e.toString();
+            _cargando = false;
+          });
+        }
+      });
+    } else {
+      setState(() {
+        _pedidos = [];
         _cargando = false;
       });
     }
@@ -65,14 +74,27 @@ class _HistorialPedidosScreenState extends State<HistorialPedidosScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    if (!widget.showAppBar) {
+      return _buildBody();
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mis Pedidos'),
         actions: [
+          if (_lastUpdate != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Center(
+                child: Text(
+                  'Sinc. ${_lastUpdate!.hour.toString().padLeft(2, '0')}:${_lastUpdate!.minute.toString().padLeft(2, '0')}:${_lastUpdate!.second.toString().padLeft(2, '0')}',
+                  style: const TextStyle(fontSize: 11, color: Colors.white70),
+                ),
+              ),
+            ),
           if (user != null)
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
-              onPressed: _cargarPedidos,
+              onPressed: _iniciarEscuchaPedidos,
               tooltip: 'Actualizar',
             ),
         ],
@@ -150,7 +172,7 @@ class _HistorialPedidosScreenState extends State<HistorialPedidosScreen> {
             Text('Error: $_error'),
             const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: _cargarPedidos,
+              onPressed: _iniciarEscuchaPedidos,
               child: const Text('Reintentar'),
             ),
           ],
@@ -184,7 +206,7 @@ class _HistorialPedidosScreenState extends State<HistorialPedidosScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: _cargarPedidos,
+      onRefresh: () async => _iniciarEscuchaPedidos(),
       child: ListView.builder(
         padding: const EdgeInsets.all(12),
         itemCount: _pedidos!.length,
@@ -220,7 +242,7 @@ class _TarjetaPedido extends StatelessWidget {
       case EstadoPedido.enCamino:
         return MinimarketTheme.primaryYellowDark;
       default:
-        return MinimarketTheme.secondaryNavy;
+        return MinimarketTheme.primaryRed;
     }
   }
 

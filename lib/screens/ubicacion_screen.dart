@@ -294,6 +294,33 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
     };
   }
 
+  Set<Circle> get _circles {
+    final circles = <Circle>{};
+    for (final t in MapsConfig.tiendasHuancayo) {
+      circles.add(
+        Circle(
+          circleId: CircleId('${t.id}-3km'),
+          center: t.ubicacion,
+          radius: 3000,
+          fillColor: MinimarketTheme.primaryRed.withValues(alpha: 0.05),
+          strokeColor: MinimarketTheme.primaryRed.withValues(alpha: 0.15),
+          strokeWidth: 1,
+        ),
+      );
+      circles.add(
+        Circle(
+          circleId: CircleId('${t.id}-5km'),
+          center: t.ubicacion,
+          radius: 5000,
+          fillColor: MinimarketTheme.primaryYellow.withValues(alpha: 0.02),
+          strokeColor: MinimarketTheme.primaryYellow.withValues(alpha: 0.10),
+          strokeWidth: 1,
+        ),
+      );
+    }
+    return circles;
+  }
+
   CameraPosition get _posicionInicial {
     if (_ubicacionUsuario != null && _tiendaDestino != null) {
       return CameraPosition(
@@ -328,6 +355,7 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
                 myLocationButtonEnabled: widget.activa,
                 markers: _markers,
                 polylines: _polylines,
+                circles: _circles,
                 onMapCreated: (controller) {
                   _mapController = controller;
                   if (!_cargando) _ajustarCamara();

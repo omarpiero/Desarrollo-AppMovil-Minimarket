@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geolocator/geolocator.dart';
 import '../config/theme.dart';
 import '../models/usuario.dart';
+import 'home_screen.dart';
 
 class RegistroScreen extends StatefulWidget {
   const RegistroScreen({super.key});
@@ -26,6 +28,65 @@ class _RegistroScreenState extends State<RegistroScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+
+  double? _latitud;
+  double? _longitud;
+  bool _obteniendoGps = false;
+
+  Future<void> _obtenerUbicacionActual() async {
+    setState(() => _obteniendoGps = true);
+    try {
+      final servicioHabilitado = await Geolocator.isLocationServiceEnabled();
+      if (!servicioHabilitado) {
+        throw Exception('Activa el GPS en tu dispositivo.');
+      }
+
+      var permiso = await Geolocator.checkPermission();
+      if (permiso == LocationPermission.denied) {
+        permiso = await Geolocator.requestPermission();
+      }
+      if (permiso == LocationPermission.denied) {
+        throw Exception('Permiso de ubicación denegado.');
+      }
+      if (permiso == LocationPermission.deniedForever) {
+        throw Exception('El permiso de ubicación está bloqueado permanentemente.');
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+
+      setState(() {
+        _latitud = position.latitude;
+        _longitud = position.longitude;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Ubicación GPS obtenida correctamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error al obtener ubicación: $e'),
+            backgroundColor: MinimarketTheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _obteniendoGps = false);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -77,6 +138,8 @@ class _RegistroScreenState extends State<RegistroScreen> {
         direccion: _direccionController.text.trim(),
         referencia: _referenciaController.text.trim(),
         puntosAcumulados: 0,
+        latitud: _latitud,
+        longitud: _longitud,
       );
 
       // 3. Guardar en Firestore colección 'usuarios' usando DNI como ID de documento
@@ -92,9 +155,10 @@ class _RegistroScreenState extends State<RegistroScreen> {
             backgroundColor: MinimarketTheme.disponible,
           ),
         );
-        // Regresar a la pantalla anterior (LoginScreen).
-        // El StreamBuilder de main.dart detectará el cambio de sesión y mostrará HomeScreen.
-        Navigator.pop(context);
+        // Regresar directo al HomeScreen (la primera ruta del stack).
+        // El StreamBuilder de main.dart detectará el cambio de sesión e iniciará la sesión del usuario.
+        HomeScreen.selectTab(0);
+        Navigator.popUntil(context, (route) => route.isFirst);
       }
     } on FirebaseAuthException catch (e) {
       String mensaje = 'Error al registrar: ${e.message ?? e.code}';
@@ -155,7 +219,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
-                    color: MinimarketTheme.secondaryNavy,
+                    color: MinimarketTheme.primaryRedDark,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -186,7 +250,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: MinimarketTheme.secondaryNavy,
+                            color: MinimarketTheme.primaryRedDark,
                           ),
                         ),
                         const Divider(height: 20),
@@ -261,7 +325,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: MinimarketTheme.secondaryNavy,
+                            color: MinimarketTheme.primaryRedDark,
                           ),
                         ),
                         const Divider(height: 20),
@@ -281,6 +345,37 @@ class _RegistroScreenState extends State<RegistroScreen> {
                             }
                             return null;
                           },
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _latitud != null && _longitud != null
+                                    ? 'Ubicación GPS: ${_latitud!.toStringAsFixed(4)}, ${_longitud!.toStringAsFixed(4)}'
+                                    : 'GPS no registrado (opcional para cálculo exacto)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: _latitud != null && _longitud != null ? Colors.green : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: _obteniendoGps ? null : _obtenerUbicacionActual,
+                              icon: _obteniendoGps
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(strokeWidth: 1.5, color: MinimarketTheme.primaryRed),
+                                    )
+                                  : const Icon(Icons.my_location_rounded, size: 16),
+                              label: const Text('GPS', style: TextStyle(fontSize: 12)),
+                              style: TextButton.styleFrom(
+                                foregroundColor: MinimarketTheme.primaryRed,
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 16),
                         
@@ -307,7 +402,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: MinimarketTheme.secondaryNavy,
+                            color: MinimarketTheme.primaryRedDark,
                           ),
                         ),
                         const Divider(height: 20),
@@ -416,7 +511,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                             height: 24,
                             width: 24,
                             child: CircularProgressIndicator(
-                              color: MinimarketTheme.secondaryNavy,
+                              color: MinimarketTheme.primaryRed,
                               strokeWidth: 2.5,
                             ),
                           )

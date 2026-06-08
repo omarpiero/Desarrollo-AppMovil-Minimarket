@@ -1,5 +1,6 @@
 // lib/screens/productos_screen.dart
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../models/producto.dart';
@@ -7,17 +8,16 @@ import '../services/firestore_service.dart';
 import '../widgets/producto_card.dart';
 import '../widgets/categoria_chip.dart';
 import '../widgets/producto_detalle.dart';
+import 'ofertas_screen.dart';
 
 class ProductosScreen extends StatefulWidget {
   final Function(Producto, int cantidad) onAgregarAlCarrito;
   final int carritoCount;
-  final int puntosUsuario; 
 
   const ProductosScreen({
     super.key,
     required this.onAgregarAlCarrito,
     required this.carritoCount,
-    required this.puntosUsuario, 
   });
 
   @override
@@ -35,56 +35,56 @@ class _ProductosScreenState extends State<ProductosScreen> {
   bool _cargando = true;
   String? _error;
 
-  String _obtenerRango(int puntos) {
-    if (puntos < 50) return 'Vecino';
-    if (puntos < 150) return 'Amigo de la casa';
-    return 'El Caserito';
-  }
+  StreamSubscription<List<Producto>>? _productosSub;
+  DateTime? _lastUpdate;
 
-  double _obtenerProgreso(int puntos) {
-    if (puntos < 50) return puntos / 50;
-    if (puntos < 150) return (puntos - 50) / 100;
-    return 1.0;
-  }
+
 
   @override
   void initState() {
     super.initState();
-    _cargarProductos();
+    _iniciarEscuchaProductos();
   }
 
   @override
   void dispose() {
+    _productosSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _cargarProductos() async {
+  void _iniciarEscuchaProductos() {
     setState(() {
       _cargando = true;
       _error = null;
     });
-
-    try {
-      final productos = await _firestoreService.obtenerProductos();
-      final categoriasSet = <String>{};
-      for (final p in productos) {
-        categoriasSet.add(p.categoria);
+    _productosSub = _firestoreService.streamProductos().listen((productos) {
+      if (mounted) {
+        setState(() {
+          _productos = productos;
+          final categoriasSet = <String>{};
+          for (final p in productos) {
+            categoriasSet.add(p.categoria);
+          }
+          _categories = categoriasSet.toList()..sort();
+          _filtrarProductos(_searchController.text);
+          _lastUpdate = DateTime.now();
+          _cargando = false;
+        });
       }
-      final categorias = categoriasSet.toList()..sort();
+    }, onError: (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Error al cargar productos: $e';
+          _cargando = false;
+        });
+      }
+    });
+  }
 
-      setState(() {
-        _productos = productos;
-        _productosFiltrados = productos;
-        _categories = categorias;
-        _cargando = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = 'Error al cargar productos: $e';
-        _cargando = false;
-      });
-    }
+  Future<void> _cargarProductos() async {
+    _productosSub?.cancel();
+    _iniciarEscuchaProductos();
   }
 
   void _filtrarProductos(String texto) {
@@ -112,6 +112,12 @@ class _ProductosScreenState extends State<ProductosScreen> {
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.only(
+          bottom: MediaQuery.of(context).size.height - 120,
+          left: 16,
+          right: 16,
+        ),
         content: Row(
           children: [
             const Icon(Icons.check_circle, color: MinimarketTheme.primaryYellow, size: 20),
@@ -140,92 +146,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
     );
   }
 
-  Widget _buildTarjetaPuntos() {
-    final rango = _obtenerRango(widget.puntosUsuario);
-    final progreso = _obtenerProgreso(widget.puntosUsuario);
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [MinimarketTheme.secondaryNavy, Color(0xFF1E293B)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: MinimarketTheme.secondaryNavy.withValues(alpha: 0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '¡Hola, Casero! Tu nivel es:',
-                    style: TextStyle(color: Colors.white70, fontSize: 11),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    rango,
-                    style: const TextStyle(
-                      color: MinimarketTheme.primaryYellow,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.stars_rounded, color: MinimarketTheme.primaryYellow, size: 18),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${widget.puntosUsuario} pts',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: progreso,
-              backgroundColor: Colors.white10,
-              valueColor: const AlwaysStoppedAnimation<Color>(MinimarketTheme.primaryYellow),
-              minHeight: 6,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            widget.puntosUsuario < 150
-                ? 'Estás a ${widget.puntosUsuario < 50 ? 50 - widget.puntosUsuario : 150 - widget.puntosUsuario} puntos del siguiente rango'
-                : '¡Felicidades! Estás en el nivel máximo del club.',
-            style: const TextStyle(color: Colors.white60, fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -234,7 +155,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: MinimarketTheme.secondaryNavy),
+            CircularProgressIndicator(color: MinimarketTheme.primaryRed),
             SizedBox(height: 16),
             Text('Cargando productos...', style: TextStyle(color: MinimarketTheme.textSecondary)),
           ],
@@ -266,7 +187,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
 
     return Column(
       children: [
-        _buildTarjetaPuntos(),
+
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
           child: TextField(
@@ -290,6 +211,20 @@ class _ProductosScreenState extends State<ProductosScreen> {
                 selected: _categoriaSeleccionada == null,
                 onSelected: (_) => _seleccionarCategoria(null),
               ),
+              CategoriaChip(
+                label: '🔥 Ofertas Wisa',
+                selected: false,
+                onSelected: (_) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => OfertasScreen(
+                        onAgregarAlCarrito: widget.onAgregarAlCarrito,
+                      ),
+                    ),
+                  );
+                },
+              ),
               ..._categories.map((cat) => CategoriaChip(
                     label: cat,
                     selected: _categoriaSeleccionada == cat,
@@ -311,10 +246,19 @@ class _ProductosScreenState extends State<ProductosScreen> {
                   fontWeight: FontWeight.w500,
                 ),
               ),
+              const SizedBox(width: 8),
+              if (_lastUpdate != null)
+                Text(
+                  '• Sinc. ${_lastUpdate!.hour.toString().padLeft(2, '0')}:${_lastUpdate!.minute.toString().padLeft(2, '0')}:${_lastUpdate!.second.toString().padLeft(2, '0')}',
+                  style: const TextStyle(
+                    color: MinimarketTheme.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.refresh, size: 20),
-                color: MinimarketTheme.secondaryNavy,
+                color: MinimarketTheme.primaryRed,
                 onPressed: _cargarProductos,
                 tooltip: 'Actualizar',
               ),
@@ -335,7 +279,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
                 )
               : RefreshIndicator(
                   onRefresh: _cargarProductos,
-                  color: MinimarketTheme.secondaryNavy,
+                  color: MinimarketTheme.primaryRed,
                   child: GridView.builder(
                     padding: const EdgeInsets.fromLTRB(8, 4, 8, 80),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

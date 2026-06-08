@@ -1,12 +1,7 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/theme.dart';
 import '../models/producto.dart';
-import '../models/usuario.dart';
 import '../services/firestore_service.dart';
-import 'login_screen.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
   const ConfiguracionScreen({super.key});
@@ -23,84 +18,6 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   bool _cargandoEliminar = false;
   bool _cargandoImagenPrueba = false;
   bool _cargandoImagenesProductos = false;
-
-  StreamSubscription? _authSubscription;
-  StreamSubscription? _usuarioSub;
-  Usuario? _usuarioLogueado;
-  bool _cargandoUsuario = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
-      _usuarioSub?.cancel();
-      _iniciarEscuchaUsuario();
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _authSubscription?.cancel();
-    _usuarioSub?.cancel();
-    super.dispose();
-  }
-
-  void _iniciarEscuchaUsuario() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      _usuarioSub = FirebaseFirestore.instance
-          .collection('usuarios')
-          .where('uid', isEqualTo: user.uid)
-          .snapshots()
-          .listen((querySnapshot) {
-        if (querySnapshot.docs.isNotEmpty) {
-          final doc = querySnapshot.docs.first;
-          if (mounted) {
-            setState(() {
-              _usuarioLogueado = Usuario.fromFirestore(doc);
-              _cargandoUsuario = false;
-            });
-          }
-        } else {
-          if (mounted) {
-            setState(() {
-              _usuarioLogueado = null;
-              _cargandoUsuario = false;
-            });
-          }
-        }
-      }, onError: (e) {
-        debugPrint('Error al escuchar datos de usuario: $e');
-        if (mounted) {
-          setState(() {
-            _cargandoUsuario = false;
-          });
-        }
-      });
-    } else {
-      if (mounted) {
-        setState(() {
-          _usuarioLogueado = null;
-          _cargandoUsuario = false;
-        });
-      }
-    }
-  }
-
-  String _obtenerRango(int puntos) {
-    if (puntos < 50) return 'Vecino';
-    if (puntos < 150) return 'Amigo de la casa';
-    return 'El Caserito';
-  }
-
-  double _obtenerProgreso(int puntos) {
-    if (puntos < 50) return puntos / 50;
-    if (puntos < 150) return (puntos - 50) / 100;
-    return 1.0;
-  }
 
   // ─── SEED ───
   Future<void> _cargarProductosIniciales() async {
@@ -155,12 +72,11 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.list_alt, color: MinimarketTheme.secondaryNavy),
-            const SizedBox(width: 8),
-            Text('Productos (${productos.length})',
-                style: const TextStyle(fontSize: 16)),
+            Icon(Icons.list_alt, color: MinimarketTheme.primaryRed),
+            SizedBox(width: 8),
+            Text('Productos', style: TextStyle(fontSize: 16)),
           ],
         ),
         content: SizedBox(
@@ -212,7 +128,6 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     );
   }
 
-
   // ─── IMAGEN DE PRUEBA ───
   Future<void> _asignarImagenIncaKolaPrueba() async {
     setState(() => _cargandoImagenPrueba = true);
@@ -240,7 +155,6 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     }
     setState(() => _cargandoImagenPrueba = false);
   }
-
 
   // ─── IMÁGENES DE PRODUCTOS ───
   Future<void> _asignarImagenesProductos() async {
@@ -321,7 +235,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('🗑️ Eliminado: ${ultimo.nombre}'),
-            backgroundColor: MinimarketTheme.secondaryNavy,
+            backgroundColor: MinimarketTheme.primaryRed,
           ),
         );
       }
@@ -336,305 +250,213 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.settings_rounded,
-                size: 80,
-                color: MinimarketTheme.divider,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Herramientas Dev'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ─── Banner de Desarrollo ───
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: MinimarketTheme.warning.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: MinimarketTheme.warning.withValues(alpha: 0.4)),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Inicia sesión para ver tu perfil',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: MinimarketTheme.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Podrás ver tus datos de entrega, tus puntos acumulados y tu nivel de caserito.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: MinimarketTheme.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const LoginScreen(),
-                      ),
-                    );
-                  },
-                  child: const Text('INICIAR SESIÓN'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ─── User Profile Card ───
-          _buildProfileCard(),
-          const SizedBox(height: 16),
-
-          // ─── Cerrar Sesión Button ───
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton.icon(
-              onPressed: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Cerrar Sesión'),
-                    content: const Text('¿Estás seguro de que deseas salir de tu cuenta?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancelar'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Salir', style: TextStyle(color: MinimarketTheme.error)),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  await FirebaseAuth.instance.signOut();
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: MinimarketTheme.error,
-                foregroundColor: Colors.white,
-              ),
-              icon: const Icon(Icons.logout_rounded),
-              label: const Text('CERRAR SESIÓN'),
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Divider(),
-          const SizedBox(height: 16),
-
-          // ─── Banner de Desarrollo ───
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: MinimarketTheme.warning.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: MinimarketTheme.warning.withValues(alpha: 0.4)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.engineering, color: MinimarketTheme.warning),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Pantalla de desarrollo — será removida en producción',
-                    style: TextStyle(
-                      color: MinimarketTheme.warning,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // ─── Sección: Carga Inicial ───
-          const Text(
-            'CARGA DE DATOS',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: MinimarketTheme.textSecondary,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: const Row(
                 children: [
-                  const Text(
-                    'Cargar Productos Iniciales',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: MinimarketTheme.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Sube los 85 productos del datasheet a la colección "productos" de Firestore. Solo funciona si la colección está vacía.',
-                    style: TextStyle(
+                  Icon(Icons.engineering, color: MinimarketTheme.warning),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Pantalla de desarrollo — herramientas y carga de datos',
+                      style: TextStyle(
+                        color: MinimarketTheme.warning,
+                        fontWeight: FontWeight.w600,
                         fontSize: 13,
-                        color: MinimarketTheme.textSecondary),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _cargandoSeed ? null : _cargarProductosIniciales,
-                      icon: _cargandoSeed
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: MinimarketTheme.secondaryNavy))
-                          : const Icon(Icons.cloud_upload_rounded),
-                      label: Text(
-                          _cargandoSeed ? 'Cargando...' : 'Cargar Datasheet'),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _cargandoImagenesProductos
-                          ? null
-                          : _asignarImagenesProductos,
-                      icon: _cargandoImagenesProductos
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.image_rounded),
-                      label: Text(_cargandoImagenesProductos
-                          ? 'Asignando imágenes...'
-                          : 'Asignar imágenes Cloudinary a productos'),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _cargandoImagenPrueba
-                          ? null
-                          : _asignarImagenIncaKolaPrueba,
-                      icon: _cargandoImagenPrueba
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.image_rounded),
-                      label: Text(_cargandoImagenPrueba
-                          ? 'Asignando imagen...'
-                          : 'Asignar imagen prueba a Inca Kola'),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // ─── Sección: CRUD de Prueba ───
-          const Text(
-            'CRUD DE PRUEBA',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: MinimarketTheme.textSecondary,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Listar
-                  _buildCrudButton(
-                    icon: Icons.list_alt_rounded,
-                    label: 'Listar Productos',
-                    color: MinimarketTheme.secondaryNavy,
-                    cargando: _cargandoListar,
-                    onPressed: _listarProductos,
-                  ),
-                  const Divider(height: 20),
-
-                  // Agregar
-                  _buildCrudButton(
-                    icon: Icons.add_circle_rounded,
-                    label: 'Agregar Producto de Prueba',
-                    color: MinimarketTheme.disponible,
-                    cargando: _cargandoAgregar,
-                    onPressed: _agregarProductoPrueba,
-                  ),
-                  const Divider(height: 20),
-
-                  // Eliminar
-                  _buildCrudButton(
-                    icon: Icons.delete_rounded,
-                    label: 'Eliminar Último Producto',
-                    color: MinimarketTheme.error,
-                    cargando: _cargandoEliminar,
-                    onPressed: _eliminarUltimoProducto,
-                  ),
-                ],
+            // ─── Sección: Carga Inicial ───
+            const Text(
+              'CARGA DE DATOS',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: MinimarketTheme.textSecondary,
+                letterSpacing: 1.2,
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-
-          // ─── Info ───
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'INFORMACIÓN',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: MinimarketTheme.textSecondary,
-                      letterSpacing: 1.2,
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Cargar Productos Iniciales',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: MinimarketTheme.textPrimary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildInfoRow('Proyecto', 'Minimarket App'),
-                  _buildInfoRow('Base de Datos', 'Cloud Firestore'),
-                  _buildInfoRow('Colección', 'productos'),
-                  _buildInfoRow('Campo imagen', 'imagenUrl'),
-                  _buildInfoRow('Versión', '1.0.0 (MVP)'),
-                ],
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Sube los 85 productos del datasheet a la colección "productos" de Firestore. Solo funciona si la colección está vacía.',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: MinimarketTheme.textSecondary),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _cargandoSeed ? null : _cargarProductosIniciales,
+                        icon: _cargandoSeed
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: MinimarketTheme.primaryRed))
+                            : const Icon(Icons.cloud_upload_rounded),
+                        label: Text(
+                            _cargandoSeed ? 'Cargando...' : 'Cargar Datasheet'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _cargandoImagenesProductos
+                            ? null
+                            : _asignarImagenesProductos,
+                        icon: _cargandoImagenesProductos
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.image_rounded),
+                        label: Text(_cargandoImagenesProductos
+                            ? 'Asignando imágenes...'
+                            : 'Asignar imágenes Cloudinary a productos'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _cargandoImagenPrueba
+                            ? null
+                            : _asignarImagenIncaKolaPrueba,
+                        icon: _cargandoImagenPrueba
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.image_rounded),
+                        label: Text(_cargandoImagenPrueba
+                            ? 'Asignando imagen...'
+                            : 'Asignar imagen prueba a Inca Kola'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+
+            // ─── Sección: CRUD de Prueba ───
+            const Text(
+              'CRUD DE PRUEBA',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: MinimarketTheme.textSecondary,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Listar
+                    _buildCrudButton(
+                      icon: Icons.list_alt_rounded,
+                      label: 'Listar Productos',
+                      color: MinimarketTheme.primaryRed,
+                      cargando: _cargandoListar,
+                      onPressed: _listarProductos,
+                    ),
+                    const Divider(height: 20),
+
+                    // Agregar
+                    _buildCrudButton(
+                      icon: Icons.add_circle_rounded,
+                      label: 'Agregar Producto de Prueba',
+                      color: MinimarketTheme.disponible,
+                      cargando: _cargandoAgregar,
+                      onPressed: _agregarProductoPrueba,
+                    ),
+                    const Divider(height: 20),
+
+                    // Eliminar
+                    _buildCrudButton(
+                      icon: Icons.delete_rounded,
+                      label: 'Eliminar Último Producto',
+                      color: MinimarketTheme.error,
+                      cargando: _cargandoEliminar,
+                      onPressed: _eliminarUltimoProducto,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // ─── Info ───
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'INFORMACIÓN',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: MinimarketTheme.textSecondary,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildInfoRow('Proyecto', 'Minimarket App (Wisa)'),
+                    _buildInfoRow('Base de Datos', 'Cloud Firestore'),
+                    _buildInfoRow('Colección', 'productos'),
+                    _buildInfoRow('Campo imagen', 'imagenUrl'),
+                    _buildInfoRow('Modo', 'Desarrollo / Debug'),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -705,199 +527,6 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                   color: MinimarketTheme.textPrimary)),
         ],
       ),
-    );
-  }
-
-  Widget _buildProfileCard() {
-    if (_cargandoUsuario) {
-      return const Card(
-        child: Padding(
-          padding: EdgeInsets.all(24.0),
-          child: Center(
-            child: CircularProgressIndicator(color: MinimarketTheme.secondaryNavy),
-          ),
-        ),
-      );
-    }
-
-    if (_usuarioLogueado == null) {
-      return const Card(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text(
-            'No se pudo cargar el perfil del usuario.',
-            style: TextStyle(color: MinimarketTheme.textSecondary),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    }
-
-    final user = _usuarioLogueado!;
-    final rango = _obtenerRango(user.puntosAcumulados);
-    final progreso = _obtenerProgreso(user.puntosAcumulados);
-
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: const LinearGradient(
-            colors: [MinimarketTheme.secondaryNavy, MinimarketTheme.secondaryNavyLight],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header with Avatar and Name
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: MinimarketTheme.primaryYellow.withValues(alpha: 0.2),
-                    child: const Icon(
-                      Icons.person_rounded,
-                      size: 36,
-                      color: MinimarketTheme.primaryYellow,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          user.nombreCompleto,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          user.email,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            fontSize: 13,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const Divider(color: Colors.white24, height: 24),
-              
-              // Contact details
-              _buildProfileDetailRow(Icons.badge_outlined, 'DNI', user.dni),
-              const SizedBox(height: 8),
-              _buildProfileDetailRow(Icons.phone_rounded, 'Teléfono', user.telefono),
-              const SizedBox(height: 8),
-              _buildProfileDetailRow(Icons.home_rounded, 'Dirección', user.direccion),
-              const SizedBox(height: 4),
-              _buildProfileDetailRow(Icons.info_outline_rounded, 'Referencia', user.referencia, isSmall: true),
-              
-              const Divider(color: Colors.white24, height: 24),
-              
-              // Rank Status
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Nivel de Caserito:',
-                        style: TextStyle(color: Colors.white70, fontSize: 11),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        rango,
-                        style: const TextStyle(
-                          color: MinimarketTheme.primaryYellow,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.stars_rounded, color: MinimarketTheme.primaryYellow, size: 18),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${user.puntosAcumulados} pts',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: progreso,
-                  backgroundColor: Colors.white10,
-                  valueColor: const AlwaysStoppedAnimation<Color>(MinimarketTheme.primaryYellow),
-                  minHeight: 6,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                user.puntosAcumulados < 150
-                    ? 'Estás a ${user.puntosAcumulados < 50 ? 50 - user.puntosAcumulados : 150 - user.puntosAcumulados} puntos del siguiente rango'
-                    : '¡Felicidades! Estás en el nivel máximo del club.',
-                style: const TextStyle(color: Colors.white60, fontSize: 11),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileDetailRow(IconData icon, String label, String value, {bool isSmall = false}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: MinimarketTheme.primaryYellow, size: isSmall ? 16 : 18),
-        const SizedBox(width: 8),
-        Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.9),
-                fontSize: isSmall ? 12 : 13,
-              ),
-              children: [
-                TextSpan(
-                  text: '$label: ',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                TextSpan(text: value),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

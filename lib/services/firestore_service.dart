@@ -51,6 +51,52 @@ const Map<String, String> imagenesProductosPrueba = {
 class FirestoreService {
   final CollectionReference _productosRef =
       FirebaseFirestore.instance.collection('productos');
+  final CollectionReference _ofertasRef =
+      FirebaseFirestore.instance.collection('ofertas');
+
+  // ─── STREAMS EN TIEMPO REAL ───
+  /// Obtiene los productos en tiempo real.
+  Stream<List<Producto>> streamProductos() {
+    return _productosRef.orderBy('categoria').snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) => Producto.fromFirestore(doc)).toList();
+    });
+  }
+
+  /// Obtiene las ofertas en tiempo real.
+  Stream<List<Producto>> streamOfertas() {
+    return _ofertasRef.snapshots().map((snapshot) {
+      if (snapshot.docs.isEmpty) {
+        _seedOfertas();
+      }
+      return snapshot.docs.map((doc) => Producto.fromFirestore(doc)).toList();
+    });
+  }
+
+  Future<void> _seedOfertas() async {
+    try {
+      final existing = await _ofertasRef.limit(1).get();
+      if (existing.docs.isNotEmpty) return;
+
+      final productosSnap = await _productosRef.limit(5).get();
+      if (productosSnap.docs.isEmpty) return;
+
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in productosSnap.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final originalPrecio = (data['precio'] ?? 0.0).toDouble();
+        final nuevoPrecio = (originalPrecio * 0.8).toStringAsFixed(2);
+        
+        final ofertaData = Map<String, dynamic>.from(data);
+        ofertaData['nombre'] = '${data['nombre']} (¡Oferta 20%!)';
+        ofertaData['precio'] = double.parse(nuevoPrecio);
+
+        batch.set(_ofertasRef.doc(doc.id), ofertaData);
+      }
+      await batch.commit();
+    } catch (e) {
+      // Ignorar errores en semilla
+    }
+  }
 
   // ─── READ ───
   /// Obtiene todos los productos de Firestore.

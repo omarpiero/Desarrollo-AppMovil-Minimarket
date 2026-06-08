@@ -4,10 +4,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; 
 import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../config/theme.dart';
 import '../models/pedido.dart';
 import '../models/producto.dart';
 import '../services/delivery_service.dart';
+import '../utils/geo_utils.dart';
 import '../widgets/producto_imagen.dart';
 import 'seguimiento_screen.dart';
 
@@ -38,10 +41,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   int _puntosDisponibles = 0;
   bool _aplicarDescuento = false;
-  final double _conversionPuntosASoles = 20.0; 
+  final double _conversionPuntosASoles = 100.0; // 1 punto = S/ 0.01
   final double _puntosPorSolGanado = 1.0;      
 
   final DeliveryService _deliveryService = DeliveryService();
+  double? _latitudUsuario;
+  double? _longitudUsuario;
+  double _distanciaTiendaKm = 0.0;
+  bool _cargandoDistancia = false;
 
   @override
   void initState() {
@@ -63,6 +70,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           final data = userDoc.data();
           setState(() {
             _puntosDisponibles = data['puntosAcumulados'] ?? 0;
+            _latitudUsuario = (data['latitud'] as num?)?.toDouble();
+            _longitudUsuario = (data['longitud'] as num?)?.toDouble();
+            
             if (_nombreController.text.isEmpty) {
               _nombreController.text = data['nombreCompleto'] ?? '';
             }
@@ -76,10 +86,47 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               _referenciaController.text = data['referencia'] ?? '';
             }
           });
+          await _calcularDistancia();
         }
       }
     } catch (e) {
       debugPrint('Error al cargar puntos: $e');
+    }
+  }
+
+  Future<void> _calcularDistancia() async {
+    double? lat = _latitudUsuario;
+    double? lng = _longitudUsuario;
+    
+    if (lat == null || lng == null) {
+      setState(() => _cargandoDistancia = true);
+      try {
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 5),
+          ),
+        );
+        lat = position.latitude;
+        lng = position.longitude;
+      } catch (e) {
+        debugPrint('No se pudo obtener ubicación en tiempo real: $e');
+      } finally {
+        setState(() => _cargandoDistancia = false);
+      }
+    }
+    
+    if (lat != null && lng != null) {
+      final userLoc = LatLng(lat, lng);
+      final tienda = tiendaMasCercanaHuancayo(userLoc);
+      final distMetros = distanciaMetros(userLoc, tienda.ubicacion);
+      setState(() {
+        _distanciaTiendaKm = distMetros / 1000.0;
+      });
+    } else {
+      setState(() {
+        _distanciaTiendaKm = 2.0;
+      });
     }
   }
 
@@ -92,30 +139,111 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return total;
   }
 
-  double get _costoDelivery => DeliveryService.calcularCostoDelivery(_subtotal);
+  double get _porcentajeDescuentoRango {
+    if (_puntosDisponibles >= 150) return 0.10;
+    if (_puntosDisponibles >= 50) return 0.05;
+    return 0.0;
+  }
+
+  double get _descuentoRangoSoles {
+    return _subtotal * _porcentajeDescuentoRango;
+  }
+
+  double get _subtotalConDescuentoRango {
+    final res = _subtotal - _descuentoRangoSoles;
+    return res < 0 ? 0.0 : res;
+  }
+
+  double get _costoDelivery {
+    return DeliveryService.calcularCostoDelivery(
+      distanciaKm: _distanciaTiendaKm,
+      puntosUsuario: _puntosDisponibles,
+      totalProductos: _subtotalConDescuentoRango,
+    );
+  }
   
   int get _puntosAUtilizar {
     if (!_aplicarDescuento) return 0;
-    int puntosEquivalentesAlSubtotal = (_subtotal * _conversionPuntosASoles).toInt();
-    if (_puntosDisponibles > puntosEquivalentesAlSubtotal) {
-      return puntosEquivalentesAlSubtotal;
+    
+    double totalMaximo = _subtotalConDescuentoRango + _costoDelivery;
+    int puntosEquivalentes = (totalMaximo * _conversionPuntosASoles).toInt();
+    
+    if (_puntosDisponibles > puntosEquivalentes) {
+      return puntosEquivalentes;
     }
     return _puntosDisponibles;
   }
 
-  double get _descuentoSoles {
+  double get _descuentoPuntosSoles {
     return _puntosAUtilizar / _conversionPuntosASoles;
   }
 
   int get _puntosAGanar {
-    double subtotalFinal = _subtotal - _descuentoSoles;
+    double subtotalFinal = _subtotalConDescuentoRango - _descuentoPuntosSoles;
     if (subtotalFinal < 0) subtotalFinal = 0;
     return (subtotalFinal * _puntosPorSolGanado).toInt();
   }
 
   double get _total {
-    double resultado = (_subtotal + _costoDelivery) - _descuentoSoles;
+    double resultado = (_subtotalConDescuentoRango + _costoDelivery) - _descuentoPuntosSoles;
     return resultado < 0 ? 0.0 : resultado;
+  }
+
+  String _obtenerRango(int puntos) {
+    if (puntos < 50) return 'Vecino';
+    if (puntos < 150) return 'Amigo de la casa';
+    return 'El Caserito';
+  }
+
+  Future<void> _mostrarAlertaNivelUp(String anterior, String nuevo) async {
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.stars_rounded, color: MinimarketTheme.primaryYellow, size: 28),
+              SizedBox(width: 8),
+              Text('¡Felicidades!', style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '¡Has subido de nivel en el Club Caserito!',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(anterior, style: const TextStyle(color: Colors.grey, decoration: TextDecoration.lineThrough)),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward_rounded, color: MinimarketTheme.primaryRed),
+                  const SizedBox(width: 8),
+                  Text(nuevo, style: const TextStyle(color: MinimarketTheme.primaryRed, fontWeight: FontWeight.bold, fontSize: 16)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Ahora disfruta de mayores descuentos en tus productos y delivery.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: MinimarketTheme.textSecondary),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('¡ESTUPENDO!'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -152,9 +280,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         direccionEntrega: _direccionController.text.trim(),
         referencia: _referenciaController.text.trim(),
         metodoPago: _metodoPago,
-        total: _subtotal,
+        total: _subtotalConDescuentoRango,
         costoDelivery: _costoDelivery,
-        descuentoAplicado: _descuentoSoles, 
+        descuentoAplicado: _descuentoPuntosSoles + _descuentoRangoSoles, 
         puntosUtilizados: _puntosAUtilizar,   
         puntosGanados: _puntosAGanar,         
         estado: EstadoPedido.pendiente,
@@ -166,24 +294,93 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       final pedidoId = await _deliveryService.crearPedido(pedido);
 
-      if (user != null && (_puntosAUtilizar > 0 || _puntosAGanar > 0)) {
+      if (user != null) {
         final querySnapshot = await FirebaseFirestore.instance
             .collection('usuarios')
             .where('uid', isEqualTo: user.uid)
             .limit(1)
             .get();
         if (querySnapshot.docs.isNotEmpty) {
-          final userRef = querySnapshot.docs.first.reference;
+          final userDoc = querySnapshot.docs.first;
+          final userRef = userDoc.reference;
+          final dni = userDoc.id;
+
+          final int puntosAnteriores = userDoc.data()['puntosAcumulados'] ?? 0;
+          final rangoAnterior = _obtenerRango(puntosAnteriores);
+
           await FirebaseFirestore.instance.runTransaction((transaction) async {
-            final snapshot = await transaction.get(userRef);
-            if (snapshot.exists) {
-              int puntosActuales = snapshot.data()?['puntosAcumulados'] ?? 0;
+            // 1. Ejecutar todos los READS primero
+            final userSnapshot = await transaction.get(userRef);
+            
+            final List<DocumentSnapshot<Map<String, dynamic>>> prodSnapshots = [];
+            final List<DocumentReference<Map<String, dynamic>>> prodRefs = [];
+            for (final item in widget.carrito) {
+              final prod = item['producto'] as Producto;
+              final prodRef = FirebaseFirestore.instance.collection('productos').doc(prod.id);
+              final prodSnapshot = await transaction.get(prodRef);
+              prodSnapshots.add(prodSnapshot);
+              prodRefs.add(prodRef);
+            }
+
+            // 2. Ejecutar todos los WRITES después
+            if (userSnapshot.exists) {
+              int puntosActuales = userSnapshot.data()?['puntosAcumulados'] ?? 0;
               int nuevosPuntos = puntosActuales - _puntosAUtilizar + _puntosAGanar;
               if (nuevosPuntos < 0) nuevosPuntos = 0;
               
               transaction.update(userRef, {'puntosAcumulados': nuevosPuntos});
             }
+
+            for (int i = 0; i < widget.carrito.length; i++) {
+              final item = widget.carrito[i];
+              final cant = item['cantidad'] as int;
+              final prodRef = prodRefs[i];
+              final prodSnapshot = prodSnapshots[i];
+
+              if (prodSnapshot.exists) {
+                int stockActual = (prodSnapshot.data()?['stock'] ?? 0).toInt();
+                int nuevoStock = stockActual - cant;
+                if (nuevoStock < 0) nuevoStock = 0;
+                bool disponible = nuevoStock > 0;
+                
+                transaction.update(prodRef, {
+                  'stock': nuevoStock,
+                  'disponible': disponible,
+                });
+              }
+            }
           });
+
+          if (_puntosAUtilizar > 0) {
+            await FirebaseFirestore.instance
+                .collection('usuarios')
+                .doc(dni)
+                .collection('historialPuntos')
+                .add({
+              'puntos': _puntosAUtilizar,
+              'tipo': 'canjeado',
+              'motivo': 'Canje por descuento en pedido $pedidoId',
+              'fecha': Timestamp.fromDate(DateTime.now()),
+            });
+          }
+          if (_puntosAGanar > 0) {
+            await FirebaseFirestore.instance
+                .collection('usuarios')
+                .doc(dni)
+                .collection('historialPuntos')
+                .add({
+              'puntos': _puntosAGanar,
+              'tipo': 'ganado',
+              'motivo': 'Puntos ganados por pedido $pedidoId',
+              'fecha': Timestamp.fromDate(DateTime.now()),
+            });
+          }
+
+          final int puntosNuevos = puntosAnteriores - _puntosAUtilizar + _puntosAGanar;
+          final rangoNuevo = _obtenerRango(puntosNuevos);
+          if (rangoNuevo != rangoAnterior) {
+            await _mostrarAlertaNivelUp(rangoAnterior, rangoNuevo);
+          }
         }
       }
 
@@ -251,17 +448,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     '¿Usar tus puntos?',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      color: MinimarketTheme.secondaryNavy,
+                      color: MinimarketTheme.primaryRed,
                       fontSize: 14,
                     ),
                   ),
                   subtitle: Text(
-                    'Tienes $_puntosDisponibles puntos.\nCanjea $_puntosAUtilizar puntos por un dscto. de S/ ${_descuentoSoles.toStringAsFixed(2)}',
+                    'Tienes $_puntosDisponibles puntos.\nCanjea $_puntosAUtilizar puntos por un dscto. de S/ ${_descuentoPuntosSoles.toStringAsFixed(2)}',
                     style: const TextStyle(fontSize: 12, color: MinimarketTheme.textSecondary),
                   ),
                   isThreeLine: true,
                   value: _aplicarDescuento,
-                  activeColor: MinimarketTheme.secondaryNavy,
+                  activeColor: MinimarketTheme.primaryRed,
                   onChanged: (bool value) {
                     setState(() {
                       _aplicarDescuento = value;
@@ -272,12 +469,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               const SizedBox(height: 16),
             ],
 
+            if (_cargandoDistancia) ...[
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 1.5, color: MinimarketTheme.primaryRed),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Calculando costo de envío por distancia...',
+                      style: TextStyle(fontSize: 12, color: MinimarketTheme.textSecondary, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             _TotalesCard(
               subtotal: _subtotal,
               costoDelivery: _costoDelivery,
-              descuento: _descuentoSoles, 
+              descuentoPuntos: _descuentoPuntosSoles, 
+              descuentoNivel: _descuentoRangoSoles,
               puntosAGanar: _puntosAGanar, 
               total: _total,
+              distanciaKm: _distanciaTiendaKm,
             ),
 
             const SizedBox(height: 20),
@@ -356,7 +575,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: MinimarketTheme.secondaryNavy,
+                          color: MinimarketTheme.primaryRed,
                         ),
                       )
                     : const Icon(Icons.check_circle_rounded),
@@ -385,7 +604,7 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, color: MinimarketTheme.secondaryNavy, size: 20),
+        Icon(icon, color: MinimarketTheme.primaryRed, size: 20),
         const SizedBox(width: 8),
         Text(
           title,
@@ -454,16 +673,20 @@ class _ItemResumen extends StatelessWidget {
 class _TotalesCard extends StatelessWidget {
   final double subtotal;
   final double costoDelivery;
-  final double descuento;
+  final double descuentoPuntos;
+  final double descuentoNivel;
   final int puntosAGanar;
   final double total;
+  final double distanciaKm;
 
   const _TotalesCard({
     required this.subtotal,
     required this.costoDelivery,
-    required this.descuento,
+    required this.descuentoPuntos,
+    required this.descuentoNivel,
     required this.puntosAGanar,
     required this.total,
+    required this.distanciaKm,
   });
 
   @override
@@ -478,35 +701,38 @@ class _TotalesCard extends StatelessWidget {
       child: Column(
         children: [
           _FilaTotal('Subtotal', 'S/ ${subtotal.toStringAsFixed(2)}'),
-          const SizedBox(height: 6),
-          _FilaTotal(
-            'Delivery',
-            costoDelivery == 0 ? '¡Gratis!' : 'S/ ${costoDelivery.toStringAsFixed(2)}',
-            valorColor: costoDelivery == 0 ? MinimarketTheme.success : null,
-          ),
           
-          if (descuento > 0) ...[
+          if (descuentoNivel > 0) ...[
             const SizedBox(height: 6),
             _FilaTotal(
-              'Descuento por Puntos', 
-              '- S/ ${descuento.toStringAsFixed(2)}',
+              'Descuento por Nivel',
+              '- S/ ${descuentoNivel.toStringAsFixed(2)}',
               valorColor: MinimarketTheme.error,
             ),
           ],
           
-          if (costoDelivery > 0) ...[
-            const SizedBox(height: 2),
-            const Text(
-              'Delivery gratis en pedidos mayores a S/ 50',
-              style: TextStyle(fontSize: 11, color: MinimarketTheme.textSecondary),
+          const SizedBox(height: 6),
+          _FilaTotal(
+            'Delivery (${distanciaKm.toStringAsFixed(1)} km)',
+            costoDelivery == 0 ? '¡Gratis!' : 'S/ ${costoDelivery.toStringAsFixed(2)}',
+            valorColor: costoDelivery == 0 ? MinimarketTheme.success : null,
+          ),
+          
+          if (descuentoPuntos > 0) ...[
+            const SizedBox(height: 6),
+            _FilaTotal(
+              'Descuento por Puntos', 
+              '- S/ ${descuentoPuntos.toStringAsFixed(2)}',
+              valorColor: MinimarketTheme.error,
             ),
           ],
+          
           const Divider(height: 16),
           _FilaTotal(
             'Total',
             'S/ ${total.toStringAsFixed(2)}',
             etiquetaNegrita: true,
-            valorColor: MinimarketTheme.secondaryNavy,
+            valorColor: MinimarketTheme.primaryRed,
             fontSize: 16,
           ),
           
@@ -678,12 +904,12 @@ class _OpcionPago extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
           color: seleccionado
-              ? MinimarketTheme.secondaryNavy
+              ? MinimarketTheme.primaryRed
               : MinimarketTheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: seleccionado
-                ? MinimarketTheme.secondaryNavy
+                ? MinimarketTheme.primaryRed
                 : MinimarketTheme.divider,
             width: seleccionado ? 2 : 1,
           ),

@@ -102,13 +102,13 @@ class _LoginScreenState extends State<LoginScreen> {
         onTap: () => FocusScope.of(context).unfocus(),
         child: Stack(
           children: [
-            // Background with premium navy gradient
+            // Background with premium Wisa gradient
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    MinimarketTheme.secondaryNavyDark,
-                    MinimarketTheme.secondaryNavy,
+                    MinimarketTheme.primaryRedDark,
+                    MinimarketTheme.primaryRed,
                   ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
@@ -149,21 +149,25 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Logo / Icon
+                      // Logo Wisa
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
+                          color: Colors.white,
                           shape: BoxShape.circle,
-                          color: MinimarketTheme.primaryYellow.withValues(alpha: 0.2),
-                          border: Border.all(
-                            color: MinimarketTheme.primaryYellow,
-                            width: 2,
-                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
-                        child: const Icon(
-                          Icons.storefront_rounded,
-                          size: 64,
-                          color: MinimarketTheme.primaryYellow,
+                        child: Image.asset(
+                          'assets/images/logo_wisa.png',
+                          height: 80,
+                          width: 80,
+                          fit: BoxFit.contain,
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -208,7 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   style: TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
-                                    color: MinimarketTheme.secondaryNavy,
+                                    color: MinimarketTheme.primaryRedDark,
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -281,7 +285,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                             height: 24,
                                             width: 24,
                                             child: CircularProgressIndicator(
-                                              color: MinimarketTheme.secondaryNavy,
+                                              color: MinimarketTheme.primaryRed,
                                               strokeWidth: 2.5,
                                             ),
                                           )

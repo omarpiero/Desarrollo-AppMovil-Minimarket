@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../config/theme.dart';
 import '../models/producto.dart';
 import '../widgets/producto_imagen.dart';
+import 'checkout_screen.dart';
+import 'login_screen.dart';
 
 class CarritoScreen extends StatelessWidget {
   final List<Map<String, dynamic>> carrito;
   final Function(int index) onEliminar;
   final Function(int index, int cantidad) onCambiarCantidad;
+  final VoidCallback onPedidoConfirmado;
 
   const CarritoScreen({
     super.key,
     required this.carrito,
     required this.onEliminar,
     required this.onCambiarCantidad,
+    required this.onPedidoConfirmado,
   });
 
   double get _total {
@@ -142,7 +147,7 @@ class CarritoScreen extends StatelessWidget {
                                 child: const Padding(
                                   padding: EdgeInsets.all(6),
                                   child: Icon(Icons.remove, size: 18,
-                                      color: MinimarketTheme.secondaryNavy),
+                                      color: MinimarketTheme.primaryRed),
                                 ),
                               ),
                               Padding(
@@ -153,7 +158,7 @@ class CarritoScreen extends StatelessWidget {
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 15,
-                                    color: MinimarketTheme.secondaryNavy,
+                                    color: MinimarketTheme.primaryRed,
                                   ),
                                 ),
                               ),
@@ -165,7 +170,7 @@ class CarritoScreen extends StatelessWidget {
                                 child: const Padding(
                                   padding: EdgeInsets.all(6),
                                   child: Icon(Icons.add, size: 18,
-                                      color: MinimarketTheme.secondaryNavy),
+                                      color: MinimarketTheme.primaryRed),
                                 ),
                               ),
                             ],
@@ -196,12 +201,12 @@ class CarritoScreen extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: MinimarketTheme.secondaryNavy,
+            color: MinimarketTheme.primaryRed,
             borderRadius:
                 const BorderRadius.vertical(top: Radius.circular(20)),
             boxShadow: [
               BoxShadow(
-                color: MinimarketTheme.secondaryNavy.withValues(alpha: 0.3),
+                color: MinimarketTheme.primaryRed.withValues(alpha: 0.3),
                 blurRadius: 10,
                 offset: const Offset(0, -2),
               ),
@@ -209,35 +214,84 @@ class CarritoScreen extends StatelessWidget {
           ),
           child: SafeArea(
             top: false,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Total',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Total',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          'S/ ${_total.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: MinimarketTheme.primaryYellow,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
                     Text(
-                      'S/ ${_total.toStringAsFixed(2)}',
+                      '${carrito.length} item${carrito.length == 1 ? '' : 's'}',
                       style: const TextStyle(
-                        color: MinimarketTheme.primaryYellow,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
+                        color: Colors.white70,
+                        fontSize: 14,
                       ),
                     ),
                   ],
                 ),
-                Text(
-                  '${carrito.length} item${carrito.length == 1 ? '' : 's'}',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user == null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
+                          ),
+                        ).then((_) {
+                          if (FirebaseAuth.instance.currentUser != null && context.mounted) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => CheckoutScreen(
+                                  carrito: carrito,
+                                  onPedidoConfirmado: onPedidoConfirmado,
+                                ),
+                              ),
+                            );
+                          }
+                        });
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CheckoutScreen(
+                              carrito: carrito,
+                              onPedidoConfirmado: onPedidoConfirmado,
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text(
+                      'CONTINUAR COMPRA',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ],
