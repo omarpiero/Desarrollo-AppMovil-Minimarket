@@ -17,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   bool _ubicacionMontada = false;
+  int _puntosUsuario = 0;
 
   // Carrito compartido entre pantallas
   final List<Map<String, dynamic>> _carrito = [];
@@ -66,7 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String get _tituloActual {
     switch (_currentIndex) {
       case 0:
-        return 'Minimarket';
+        return '';
       case 1:
         return 'Mi Carrito';
       case 2:
@@ -74,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 3:
         return 'Configuración';
       default:
-        return 'Minimarket';
+        return '';
     }
   }
 
@@ -82,7 +83,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_tituloActual),
+        centerTitle: true,
+        title: _currentIndex == 0 ? SizedBox(
+          height: 56,
+          child: Image.asset(
+            'lib/assets/logo principal wisa.png',
+            fit: BoxFit.contain,
+          ),
+        ) : Text(_tituloActual),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 4),
@@ -101,6 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ProductosScreen(
             onAgregarAlCarrito: _agregarAlCarrito,
             carritoCount: _carritoItemCount,
+            puntosUsuario: _puntosUsuario,
           ),
           CarritoScreen(
             carrito: _carrito,

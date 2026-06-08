@@ -150,35 +150,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Logo / Icon
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: MinimarketTheme.primaryYellow.withValues(alpha: 0.2),
-                          border: Border.all(
-                            color: MinimarketTheme.primaryYellow,
-                            width: 2,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.storefront_rounded,
-                          size: 64,
-                          color: MinimarketTheme.primaryYellow,
+                      SizedBox(
+                        height: 180,
+                        child: Image.asset(
+                          'lib/assets/logo secundario wisa.png',
+                          fit: BoxFit.contain,
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 40),
                       
                       // App Name & Welcome
-                      const Text(
-                        'MINIMARKET',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          color: MinimarketTheme.primaryYellow,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      const SizedBox.shrink(),
+                      const SizedBox(height: 0),
                       Text(
                         'Ingresa a tu cuenta para continuar comprando',
                         style: TextStyle(

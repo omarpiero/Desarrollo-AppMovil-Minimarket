@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
 class MinimarketTheme {
+  // ─── Colores de Marca WISA (Rojo y Amarillo) ───
+  static const Color wisaRed = Color(0xFFE63946);
+  static const Color wisaYellow = Color(0xFFFFC107);
+
   // ─── Colores Primarios (Amarillo) ───
   static const Color primaryYellow = Color(0xFFFFC107);
   static const Color primaryYellowDark = Color(0xFFFFA000);

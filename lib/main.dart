@@ -15,7 +15,7 @@ class MinimarketApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Minimarket',
+      title: 'Wisa Minimarket',
       debugShowCheckedModeBanner: false,
       theme: MinimarketTheme.themeData,
       home: const HomeScreen(),
