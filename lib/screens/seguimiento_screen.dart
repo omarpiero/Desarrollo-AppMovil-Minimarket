@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config/theme.dart';
 import '../models/pedido.dart';
 import '../services/delivery_service.dart';
@@ -37,40 +37,6 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
     super.dispose();
   }
 
-  void _verificarYActualizarEstadoPedido(Pedido pedido) {
-    if (pedido.estado == EstadoPedido.cancelado) {
-      return;
-    }
-    final diffInSecs = DateTime.now().difference(pedido.creadoEn).inSeconds;
-    
-    EstadoPedido targetEstado = pedido.estado;
-    if (diffInSecs >= 1200) {
-      targetEstado = EstadoPedido.entregado;
-    } else if (diffInSecs >= 900) {
-      targetEstado = EstadoPedido.enCamino;
-    } else if (diffInSecs >= 600) {
-      targetEstado = EstadoPedido.preparando;
-    } else if (diffInSecs >= 300) {
-      targetEstado = EstadoPedido.confirmado;
-    }
-
-    if (targetEstado.index > pedido.estado.index) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        try {
-          await FirebaseFirestore.instance
-              .collection('pedidos')
-              .doc(pedido.id)
-              .update({
-            'estado': targetEstado.name,
-            'actualizadoEn': Timestamp.fromDate(DateTime.now()),
-          });
-        } catch (e) {
-          debugPrint('Error al actualizar estado automático del pedido: $e');
-        }
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -105,7 +71,6 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
           }
 
           final pedido = snapshot.data!;
-          _verificarYActualizarEstadoPedido(pedido);
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -139,6 +104,11 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
                 ),
 
                 const SizedBox(height: 12),
+
+                if (pedido.tiendaNombre != null) ...[
+                  _RutaDeliveryCard(pedido: pedido),
+                  const SizedBox(height: 12),
+                ],
 
                 _DetalleCard(
                   titulo: 'Método de pago',
@@ -317,6 +287,43 @@ class _SeguimientoScreenState extends State<SeguimientoScreen> {
         );
       }
     }
+  }
+}
+
+Future<void> _abrirRutaPedido(BuildContext context, Pedido pedido) async {
+  final tiendaLat = pedido.tiendaLatitud;
+  final tiendaLng = pedido.tiendaLongitud;
+  final clienteLat = pedido.clienteLatitud;
+  final clienteLng = pedido.clienteLongitud;
+
+  if (tiendaLat == null ||
+      tiendaLng == null ||
+      clienteLat == null ||
+      clienteLng == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Este pedido no tiene coordenadas de ruta guardadas.'),
+        backgroundColor: MinimarketTheme.error,
+      ),
+    );
+    return;
+  }
+
+  final uri = Uri.https('www.google.com', '/maps/dir/', {
+    'api': '1',
+    'origin': '$tiendaLat,$tiendaLng',
+    'destination': '$clienteLat,$clienteLng',
+    'travelmode': 'driving',
+  });
+
+  if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+      context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('No se pudo abrir la ruta en Google Maps.'),
+        backgroundColor: MinimarketTheme.error,
+      ),
+    );
   }
 }
 
@@ -564,6 +571,154 @@ class _DetalleCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RutaDeliveryCard extends StatelessWidget {
+  final Pedido pedido;
+
+  const _RutaDeliveryCard({required this.pedido});
+
+  @override
+  Widget build(BuildContext context) {
+    final distancia = pedido.distanciaRutaTexto;
+    final duracion = pedido.duracionRutaTexto;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.store_mall_directory_rounded,
+                  color: MinimarketTheme.primaryRed,
+                  size: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Tienda asignada',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: MinimarketTheme.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        pedido.tiendaNombre ?? 'Tienda Wisa',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: MinimarketTheme.textPrimary,
+                        ),
+                      ),
+                      if (pedido.tiendaDireccion != null)
+                        Text(
+                          pedido.tiendaDireccion!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: MinimarketTheme.textSecondary,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (distancia != null || duracion != null) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  if (distancia != null)
+                    Expanded(
+                      child: _RutaInfo(
+                        icono: Icons.route_rounded,
+                        etiqueta: 'Distancia',
+                        valor: distancia,
+                      ),
+                    ),
+                  if (distancia != null && duracion != null)
+                    const SizedBox(width: 10),
+                  if (duracion != null)
+                    Expanded(
+                      child: _RutaInfo(
+                        icono: Icons.schedule_rounded,
+                        etiqueta: 'Tiempo',
+                        valor: duracion,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _abrirRutaPedido(context, pedido),
+                icon: const Icon(Icons.map_rounded),
+                label: const Text('Ver ruta en Google Maps'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RutaInfo extends StatelessWidget {
+  final IconData icono;
+  final String etiqueta;
+  final String valor;
+
+  const _RutaInfo({
+    required this.icono,
+    required this.etiqueta,
+    required this.valor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: MinimarketTheme.primaryYellowSurface,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(icono, color: MinimarketTheme.secondaryNavy, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  etiqueta,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: MinimarketTheme.textSecondary,
+                  ),
+                ),
+                Text(
+                  valor,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: MinimarketTheme.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

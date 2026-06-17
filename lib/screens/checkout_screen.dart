@@ -10,7 +10,7 @@ import '../config/theme.dart';
 import '../models/pedido.dart';
 import '../models/producto.dart';
 import '../services/delivery_service.dart';
-import '../utils/geo_utils.dart';
+import '../services/map_delivery_service.dart';
 import '../widgets/producto_imagen.dart';
 import 'seguimiento_screen.dart';
 
@@ -45,9 +45,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final double _puntosPorSolGanado = 1.0;      
 
   final DeliveryService _deliveryService = DeliveryService();
+  final MapDeliveryService _mapDeliveryService = MapDeliveryService();
   double? _latitudUsuario;
   double? _longitudUsuario;
-  double _distanciaTiendaKm = 0.0;
+  RutaTiendaResultado? _rutaDelivery;
+  String? _avisoRutaDelivery;
   bool _cargandoDistancia = false;
 
   @override
@@ -95,39 +97,77 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _calcularDistancia() async {
+    setState(() {
+      _cargandoDistancia = true;
+      _avisoRutaDelivery = null;
+    });
+
     double? lat = _latitudUsuario;
     double? lng = _longitudUsuario;
     
     if (lat == null || lng == null) {
-      setState(() => _cargandoDistancia = true);
       try {
-        final position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.medium,
-            timeLimit: Duration(seconds: 5),
-          ),
-        );
+        final position = await _obtenerUbicacionActual();
         lat = position.latitude;
         lng = position.longitude;
       } catch (e) {
         debugPrint('No se pudo obtener ubicación en tiempo real: $e');
-      } finally {
-        setState(() => _cargandoDistancia = false);
+        if (!mounted) return;
+        setState(() {
+          _rutaDelivery = null;
+          _avisoRutaDelivery =
+              'No pudimos calcular tu delivery porque falta permiso o señal GPS.';
+          _cargandoDistancia = false;
+        });
+        return;
       }
     }
     
-    if (lat != null && lng != null) {
+    try {
       final userLoc = LatLng(lat, lng);
-      final tienda = tiendaMasCercanaHuancayo(userLoc);
-      final distMetros = distanciaMetros(userLoc, tienda.ubicacion);
+      final resultado = await _mapDeliveryService.asignarTiendaOptima(
+        origen: userLoc,
+      );
+      if (!mounted) return;
       setState(() {
-        _distanciaTiendaKm = distMetros / 1000.0;
+        _latitudUsuario = lat;
+        _longitudUsuario = lng;
+        _rutaDelivery = resultado;
+        _avisoRutaDelivery = resultado.aviso;
+        _cargandoDistancia = false;
       });
-    } else {
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _distanciaTiendaKm = 2.0;
+        _rutaDelivery = null;
+        _avisoRutaDelivery =
+            'No se pudo calcular una tienda de delivery: ${e.toString().replaceFirst('Exception: ', '')}';
+        _cargandoDistancia = false;
       });
     }
+  }
+
+  Future<Position> _obtenerUbicacionActual() async {
+    final servicioHabilitado = await Geolocator.isLocationServiceEnabled();
+    if (!servicioHabilitado) {
+      throw Exception('Activa el GPS para calcular el costo de delivery.');
+    }
+
+    var permiso = await Geolocator.checkPermission();
+    if (permiso == LocationPermission.denied) {
+      permiso = await Geolocator.requestPermission();
+    }
+    if (permiso == LocationPermission.denied ||
+        permiso == LocationPermission.deniedForever) {
+      throw Exception('Se necesita permiso de ubicación.');
+    }
+
+    return Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.medium,
+        timeLimit: Duration(seconds: 8),
+      ),
+    );
   }
 
   double get _subtotal {
@@ -156,7 +196,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   double get _costoDelivery {
     return DeliveryService.calcularCostoDelivery(
-      distanciaKm: _distanciaTiendaKm,
+      distanciaKm: _rutaDelivery?.distanciaDeliveryKm ?? 0.0,
       puntosUsuario: _puntosDisponibles,
       totalProductos: _subtotalConDescuentoRango,
     );
@@ -258,6 +298,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _confirmarPedido() async {
     if (!_formKey.currentState!.validate()) return;
+    final rutaDelivery = _rutaDelivery;
+    if (rutaDelivery == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Calcula la ruta de delivery antes de confirmar.'),
+          backgroundColor: MinimarketTheme.error,
+        ),
+      );
+      await _calcularDistancia();
+      return;
+    }
 
     setState(() => _enviando = true);
 
@@ -287,6 +338,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         puntosGanados: _puntosAGanar,         
         estado: EstadoPedido.pendiente,
         creadoEn: DateTime.now(),
+        tiendaPlaceId: rutaDelivery.tienda.placeId,
+        tiendaId: rutaDelivery.tienda.id,
+        tiendaNombre: rutaDelivery.tienda.nombre,
+        tiendaDireccion: rutaDelivery.tienda.direccion,
+        tiendaLatitud: rutaDelivery.tienda.ubicacion.latitude,
+        tiendaLongitud: rutaDelivery.tienda.ubicacion.longitude,
+        clienteLatitud: rutaDelivery.origen.latitude,
+        clienteLongitud: rutaDelivery.origen.longitude,
+        distanciaRutaMetros: rutaDelivery.distanciaDeliveryMetros,
+        duracionRutaSegundos: rutaDelivery.duracionDeliverySegundos,
+        distanciaRutaTexto: rutaDelivery.distanciaDeliveryTexto,
+        duracionRutaTexto: rutaDelivery.duracionDeliveryTexto,
         notasAdicionales: _notasController.text.trim().isEmpty
             ? null
             : _notasController.text.trim(),
@@ -458,7 +521,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                   isThreeLine: true,
                   value: _aplicarDescuento,
-                  activeColor: MinimarketTheme.primaryRed,
+                  activeThumbColor: MinimarketTheme.primaryRed,
                   onChanged: (bool value) {
                     setState(() {
                       _aplicarDescuento = value;
@@ -496,7 +559,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               descuentoNivel: _descuentoRangoSoles,
               puntosAGanar: _puntosAGanar, 
               total: _total,
-              distanciaKm: _distanciaTiendaKm,
+              tiendaNombre: _rutaDelivery?.tienda.nombre,
+              distanciaTexto: _rutaDelivery?.distanciaDeliveryTexto,
+              duracionTexto: _rutaDelivery?.duracionDeliveryTexto,
+              aviso: _avisoRutaDelivery,
             ),
 
             const SizedBox(height: 20),
@@ -568,7 +634,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               width: double.infinity,
               height: 52,
               child: ElevatedButton.icon(
-                onPressed: _enviando ? null : _confirmarPedido,
+                onPressed: _enviando || _cargandoDistancia || _rutaDelivery == null
+                    ? null
+                    : _confirmarPedido,
                 icon: _enviando
                     ? const SizedBox(
                         width: 20,
@@ -677,7 +745,10 @@ class _TotalesCard extends StatelessWidget {
   final double descuentoNivel;
   final int puntosAGanar;
   final double total;
-  final double distanciaKm;
+  final String? tiendaNombre;
+  final String? distanciaTexto;
+  final String? duracionTexto;
+  final String? aviso;
 
   const _TotalesCard({
     required this.subtotal,
@@ -686,7 +757,10 @@ class _TotalesCard extends StatelessWidget {
     required this.descuentoNivel,
     required this.puntosAGanar,
     required this.total,
-    required this.distanciaKm,
+    this.tiendaNombre,
+    this.distanciaTexto,
+    this.duracionTexto,
+    this.aviso,
   });
 
   @override
@@ -711,12 +785,30 @@ class _TotalesCard extends StatelessWidget {
             ),
           ],
           
+          if (tiendaNombre != null) ...[
+            const SizedBox(height: 6),
+            _FilaTotal('Tienda asignada', tiendaNombre!),
+          ],
+
           const SizedBox(height: 6),
           _FilaTotal(
-            'Delivery (${distanciaKm.toStringAsFixed(1)} km)',
+            distanciaTexto == null
+                ? 'Delivery'
+                : 'Delivery ($distanciaTexto${duracionTexto == null ? '' : ' · $duracionTexto'})',
             costoDelivery == 0 ? '¡Gratis!' : 'S/ ${costoDelivery.toStringAsFixed(2)}',
             valorColor: costoDelivery == 0 ? MinimarketTheme.success : null,
           ),
+
+          if (aviso != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              aviso!,
+              style: const TextStyle(
+                fontSize: 11,
+                color: MinimarketTheme.warning,
+              ),
+            ),
+          ],
           
           if (descuentoPuntos > 0) ...[
             const SizedBox(height: 6),
@@ -780,20 +872,26 @@ class _FilaTotal extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          etiqueta,
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: etiquetaNegrita ? FontWeight.w700 : FontWeight.normal,
-            color: MinimarketTheme.textPrimary,
+        Expanded(
+          child: Text(
+            etiqueta,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: etiquetaNegrita ? FontWeight.w700 : FontWeight.normal,
+              color: MinimarketTheme.textPrimary,
+            ),
           ),
         ),
-        Text(
-          valor,
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: FontWeight.w700,
-            color: valorColor ?? MinimarketTheme.primaryYellowDark,
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            valor,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+              color: valorColor ?? MinimarketTheme.primaryYellowDark,
+            ),
           ),
         ),
       ],

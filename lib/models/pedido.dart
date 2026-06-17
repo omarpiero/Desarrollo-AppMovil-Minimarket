@@ -136,6 +136,18 @@ class Pedido {
   final DateTime creadoEn;
   final DateTime? actualizadoEn;
   final String? notasAdicionales;
+  final String? tiendaPlaceId;
+  final String? tiendaId;
+  final String? tiendaNombre;
+  final String? tiendaDireccion;
+  final double? tiendaLatitud;
+  final double? tiendaLongitud;
+  final double? clienteLatitud;
+  final double? clienteLongitud;
+  final int? distanciaRutaMetros;
+  final int? duracionRutaSegundos;
+  final String? distanciaRutaTexto;
+  final String? duracionRutaTexto;
 
   const Pedido({
     required this.id,
@@ -155,6 +167,18 @@ class Pedido {
     required this.creadoEn,
     this.actualizadoEn,
     this.notasAdicionales,
+    this.tiendaPlaceId,
+    this.tiendaId,
+    this.tiendaNombre,
+    this.tiendaDireccion,
+    this.tiendaLatitud,
+    this.tiendaLongitud,
+    this.clienteLatitud,
+    this.clienteLongitud,
+    this.distanciaRutaMetros,
+    this.duracionRutaSegundos,
+    this.distanciaRutaTexto,
+    this.duracionRutaTexto,
   });
 
   // Modificado: Ahora resta el descuento aplicado de los puntos al total final
@@ -178,6 +202,18 @@ class Pedido {
         'actualizadoEn':
             actualizadoEn != null ? Timestamp.fromDate(actualizadoEn!) : null,
         'notasAdicionales': notasAdicionales,
+        'tiendaPlaceId': tiendaPlaceId,
+        'tiendaId': tiendaId,
+        'tiendaNombre': tiendaNombre,
+        'tiendaDireccion': tiendaDireccion,
+        'tiendaLatitud': tiendaLatitud,
+        'tiendaLongitud': tiendaLongitud,
+        'clienteLatitud': clienteLatitud,
+        'clienteLongitud': clienteLongitud,
+        'distanciaRutaMetros': distanciaRutaMetros,
+        'duracionRutaSegundos': duracionRutaSegundos,
+        'distanciaRutaTexto': distanciaRutaTexto,
+        'duracionRutaTexto': duracionRutaTexto,
       };
 
   factory Pedido.fromFirestore(DocumentSnapshot doc) {
@@ -204,6 +240,18 @@ class Pedido {
       creadoEn: (data['creadoEn'] as Timestamp?)?.toDate() ?? DateTime.now(),
       actualizadoEn: (data['actualizadoEn'] as Timestamp?)?.toDate(),
       notasAdicionales: data['notasAdicionales'],
+      tiendaPlaceId: data['tiendaPlaceId'],
+      tiendaId: data['tiendaId'],
+      tiendaNombre: data['tiendaNombre'],
+      tiendaDireccion: data['tiendaDireccion'],
+      tiendaLatitud: (data['tiendaLatitud'] as num?)?.toDouble(),
+      tiendaLongitud: (data['tiendaLongitud'] as num?)?.toDouble(),
+      clienteLatitud: (data['clienteLatitud'] as num?)?.toDouble(),
+      clienteLongitud: (data['clienteLongitud'] as num?)?.toDouble(),
+      distanciaRutaMetros: (data['distanciaRutaMetros'] as num?)?.toInt(),
+      duracionRutaSegundos: (data['duracionRutaSegundos'] as num?)?.toInt(),
+      distanciaRutaTexto: data['distanciaRutaTexto'],
+      duracionRutaTexto: data['duracionRutaTexto'],
     );
   }
 
@@ -226,6 +274,18 @@ class Pedido {
       creadoEn: creadoEn,
       actualizadoEn: actualizadoEn ?? this.actualizadoEn,
       notasAdicionales: notasAdicionales,
+      tiendaPlaceId: tiendaPlaceId,
+      tiendaId: tiendaId,
+      tiendaNombre: tiendaNombre,
+      tiendaDireccion: tiendaDireccion,
+      tiendaLatitud: tiendaLatitud,
+      tiendaLongitud: tiendaLongitud,
+      clienteLatitud: clienteLatitud,
+      clienteLongitud: clienteLongitud,
+      distanciaRutaMetros: distanciaRutaMetros,
+      duracionRutaSegundos: duracionRutaSegundos,
+      distanciaRutaTexto: distanciaRutaTexto,
+      duracionRutaTexto: duracionRutaTexto,
     );
   }
 }

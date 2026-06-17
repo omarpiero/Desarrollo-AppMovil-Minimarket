@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config/maps_config.dart';
 import '../config/theme.dart';
 import '../services/directions_service.dart';
+import '../services/map_delivery_service.dart';
 import '../utils/geo_utils.dart';
 
 class UbicacionScreen extends StatefulWidget {
@@ -20,12 +21,17 @@ class UbicacionScreen extends StatefulWidget {
 
 class _UbicacionScreenState extends State<UbicacionScreen> {
   final DirectionsService _directionsService = DirectionsService();
+  late final MapDeliveryService _mapDeliveryService =
+      MapDeliveryService(directionsService: _directionsService);
 
   GoogleMapController? _mapController;
   LatLng? _ubicacionUsuario;
   TiendaWisaData? _tiendaDestino;
+  List<TiendaWisaData> _tiendasCercanas = const [];
+  String? _tiendaRecomendadaId;
   RutaDirections? _ruta;
-  ModoTransporte _modo = ModoTransporte.walking;
+  RutaTiendaResultado? _resultadoRuta;
+  ModoTransporte _modo = ModoTransporte.driving;
 
   bool _cargando = false;
   bool _inicializado = false;
@@ -66,27 +72,27 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
 
     try {
       final usuario = await _obtenerUbicacionUsuario();
-      final tienda = tiendaMasCercanaHuancayo(usuario);
-      final distLinea = distanciaMetros(usuario, tienda.ubicacion);
-      final modoSugerido = _directionsService.modoSugerido(distLinea);
-
-      String? aviso;
-      if (!estaEnHuancayo(usuario)) {
-        aviso =
-            'Tu GPS no parece estar en Huancayo. Igual te mostramos la tienda '
-            'Wisa más cercana en ${MapsConfig.ciudad}.';
-      }
+      final resultado = await _mapDeliveryService.asignarTiendaOptima(
+        origen: usuario,
+        modo: ModoTransporte.driving,
+      );
+      final tienda = resultado.tienda;
 
       if (!mounted) return;
       setState(() {
         _ubicacionUsuario = usuario;
         _tiendaDestino = tienda;
-        _distanciaLineaMetros = distLinea;
-        _modo = modoSugerido;
-        _aviso = aviso;
+        _tiendasCercanas = resultado.tiendasDisponibles;
+        _tiendaRecomendadaId = tienda.id;
+        _distanciaLineaMetros = resultado.distanciaLineaMetros;
+        _ruta = resultado.ruta;
+        _resultadoRuta = resultado;
+        _modo = ModoTransporte.driving;
+        _aviso = resultado.aviso;
+        _cargando = false;
       });
 
-      await _calcularRuta();
+      await _ajustarCamara();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -129,8 +135,8 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
     if (!widget.activa) return;
 
     final origen = _ubicacionUsuario;
-    final destino = _tiendaDestino?.ubicacion;
-    if (origen == null || destino == null) return;
+    final tienda = _tiendaDestino;
+    if (origen == null || tienda == null) return;
 
     setState(() {
       _cargando = true;
@@ -138,15 +144,18 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
     });
 
     try {
-      final ruta = await _directionsService.obtenerRuta(
+      final resultado = await _mapDeliveryService.rutaParaTienda(
         origen: origen,
-        destino: destino,
+        tienda: tienda,
         modo: _modo,
       );
 
       if (!mounted) return;
       setState(() {
-        _ruta = ruta;
+        _ruta = resultado.ruta;
+        _resultadoRuta = resultado;
+        _distanciaLineaMetros = resultado.distanciaLineaMetros;
+        _aviso = resultado.aviso;
         _error = null;
         _cargando = false;
       });
@@ -159,6 +168,21 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
         _cargando = false;
       });
     }
+  }
+
+  Future<void> _seleccionarTienda(TiendaWisaData tienda) async {
+    if (_tiendaDestino?.id == tienda.id && !_cargando) return;
+
+    setState(() {
+      _tiendaDestino = tienda;
+      _ruta = null;
+      _resultadoRuta = null;
+      _distanciaLineaMetros = _ubicacionUsuario == null
+          ? null
+          : distanciaMetros(_ubicacionUsuario!, tienda.ubicacion);
+    });
+
+    await _calcularRuta();
   }
 
   Future<void> _ajustarCamara() async {
@@ -234,23 +258,12 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
 
   Set<Marker> get _markers {
     final markers = <Marker>{};
-    final usuario = _ubicacionUsuario;
     final tienda = _tiendaDestino;
 
-    if (usuario != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('usuario'),
-          position: usuario,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-          infoWindow: const InfoWindow(title: 'Tu ubicación'),
-        ),
-      );
-    }
-
     final destinoId = tienda?.id;
-    for (final t in MapsConfig.tiendasHuancayo) {
+    for (final t in _tiendasCercanas) {
       final esDestino = t.id == destinoId;
+      final esRecomendada = t.id == _tiendaRecomendadaId;
       markers.add(
         Marker(
           markerId: MarkerId(t.id),
@@ -259,24 +272,15 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
             esDestino ? BitmapDescriptor.hueYellow : BitmapDescriptor.hueOrange,
           ),
           infoWindow: InfoWindow(
-            title: esDestino ? '${t.nombre} (más cercana)' : t.nombre,
+            title: esDestino
+                ? '${t.nombre} (${esRecomendada ? 'recomendada' : 'seleccionada'})'
+                : t.nombre,
             snippet: t.direccion,
           ),
+          onTap: () => _seleccionarTienda(t),
         ),
       );
     }
-
-    markers.add(
-      Marker(
-        markerId: const MarkerId('continental-ref'),
-        position: MapsConfig.universidadContinental,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        infoWindow: const InfoWindow(
-          title: 'Universidad Continental',
-          snippet: 'Campus Huancayo (referencia)',
-        ),
-      ),
-    );
 
     return markers;
   }
@@ -296,24 +300,15 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
 
   Set<Circle> get _circles {
     final circles = <Circle>{};
-    for (final t in MapsConfig.tiendasHuancayo) {
+    final tienda = _tiendaDestino;
+    if (tienda != null) {
       circles.add(
         Circle(
-          circleId: CircleId('${t.id}-3km'),
-          center: t.ubicacion,
+          circleId: CircleId('${tienda.id}-3km'),
+          center: tienda.ubicacion,
           radius: 3000,
           fillColor: MinimarketTheme.primaryRed.withValues(alpha: 0.05),
           strokeColor: MinimarketTheme.primaryRed.withValues(alpha: 0.15),
-          strokeWidth: 1,
-        ),
-      );
-      circles.add(
-        Circle(
-          circleId: CircleId('${t.id}-5km'),
-          center: t.ubicacion,
-          radius: 5000,
-          fillColor: MinimarketTheme.primaryYellow.withValues(alpha: 0.02),
-          strokeColor: MinimarketTheme.primaryYellow.withValues(alpha: 0.10),
           strokeWidth: 1,
         ),
       );
@@ -385,7 +380,7 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
                 size: 56, color: MinimarketTheme.secondaryNavy),
             const SizedBox(height: 16),
             const Text(
-              'Mapa y rutas a tiendas Wisa en Huancayo',
+              'Mapa y rutas a tiendas Wisa cercanas',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontWeight: FontWeight.w700,
@@ -394,7 +389,7 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Al entrar aquí usamos tu GPS para mostrar la tienda más cercana.',
+              'Al entrar aquí usamos tu GPS para buscar tiendas Wisa cercanas en Google Maps.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
@@ -436,6 +431,14 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
   Widget _buildPanelInfo() {
     final tienda = _tiendaDestino;
     final ruta = _ruta;
+    final resultado = _resultadoRuta;
+    final radioKm = ((resultado?.radioBusquedaMetros ?? 0) / 1000).round();
+    final tiendasOrdenadas = _ubicacionUsuario == null
+        ? <TiendaConDistancia>[]
+        : tiendasOrdenadasPorDistancia(
+            _ubicacionUsuario!,
+            tiendas: _tiendasCercanas,
+          );
 
     return Material(
       elevation: 8,
@@ -454,8 +457,8 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      '${MapsConfig.tiendasHuancayo.length} tiendas Wisa en '
-                      '${MapsConfig.ciudad}',
+                      '${_tiendasCercanas.length} tiendas Wisa encontradas'
+                      '${radioKm > 0 ? ' a $radioKm km' : ''}',
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -467,37 +470,46 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
               ),
               if (_ubicacionUsuario != null) ...[
                 const SizedBox(height: 8),
-                ...tiendasOrdenadasPorDistancia(_ubicacionUsuario!)
+                ...tiendasOrdenadas
                     .take(3)
                     .map(
                       (item) => Padding(
                         padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          children: [
-                            Icon(
-                              item.tienda.id == tienda?.id
-                                  ? Icons.star
-                                  : Icons.store_outlined,
-                              size: 14,
-                              color: item.tienda.id == tienda?.id
-                                  ? MinimarketTheme.primaryYellowDark
-                                  : MinimarketTheme.textSecondary,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                '${item.tienda.nombre} · '
-                                '${formatearDistanciaCorta(item.distanciaMetros)}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: item.tienda.id == tienda?.id
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: MinimarketTheme.textPrimary,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: _cargando
+                              ? null
+                              : () => _seleccionarTienda(item.tienda),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  item.tienda.id == tienda?.id
+                                      ? Icons.star
+                                      : Icons.store_outlined,
+                                  size: 14,
+                                  color: item.tienda.id == tienda?.id
+                                      ? MinimarketTheme.primaryYellowDark
+                                      : MinimarketTheme.textSecondary,
                                 ),
-                              ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    '${item.tienda.nombre} · '
+                                    '${formatearDistanciaCorta(item.distanciaMetros)} aprox.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: item.tienda.id == tienda?.id
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      color: MinimarketTheme.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -523,9 +535,9 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            MapsConfig.tiendasHuancayo.length > 1
-                                ? 'Tienda más cercana a ti'
-                                : 'Tu tienda Wisa en Huancayo',
+                            tienda.id == _tiendaRecomendadaId
+                                ? 'Tienda recomendada para delivery'
+                                : 'Tienda seleccionada',
                             style: TextStyle(
                               fontSize: 11,
                               color: MinimarketTheme.textSecondary.withValues(alpha: 0.9),
@@ -554,7 +566,9 @@ class _UbicacionScreenState extends State<UbicacionScreen> {
                 if (_distanciaLineaMetros != null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    formatearDistanciaLinea(_distanciaLineaMetros!),
+                    resultado?.ruta != null
+                        ? 'Ruta real: ${resultado!.distanciaDeliveryTexto}'
+                        : formatearDistanciaLinea(_distanciaLineaMetros!),
                     style: const TextStyle(
                       fontSize: 12,
                       color: MinimarketTheme.textSecondary,

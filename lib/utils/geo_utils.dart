@@ -28,7 +28,11 @@ bool estaEnHuancayo(LatLng ubicacion) {
 
 /// Elige la tienda Wisa de Huancayo más cercana al usuario.
 TiendaWisaData tiendaMasCercanaHuancayo(LatLng origen) {
-  final tiendas = MapsConfig.tiendasHuancayo;
+  return tiendaMasCercana(origen, MapsConfig.tiendasHuancayo);
+}
+
+/// Elige la tienda más cercana al usuario dentro de una lista determinada.
+TiendaWisaData tiendaMasCercana(LatLng origen, List<TiendaWisaData> tiendas) {
   if (tiendas.isEmpty) {
     throw Exception('No hay tiendas Wisa configuradas en Huancayo.');
   }
@@ -62,8 +66,11 @@ String formatearDistanciaCorta(double metros) {
 }
 
 /// Tiendas Wisa en Huancayo ordenadas de la más cercana a la más lejana.
-List<TiendaConDistancia> tiendasOrdenadasPorDistancia(LatLng origen) {
-  return MapsConfig.tiendasHuancayo
+List<TiendaConDistancia> tiendasOrdenadasPorDistancia(
+  LatLng origen, {
+  List<TiendaWisaData>? tiendas,
+}) {
+  return (tiendas ?? MapsConfig.tiendasHuancayo)
       .map(
         (t) => TiendaConDistancia(
           tienda: t,

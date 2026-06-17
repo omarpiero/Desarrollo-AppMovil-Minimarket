@@ -81,6 +81,10 @@ class TiendaWisaData {
     required this.direccion,
     required this.ciudad,
     required this.ubicacion,
+    this.placeId,
+    this.fuente = 'local',
+    this.radioBusquedaMetros,
+    this.rating,
   });
 
   final String id;
@@ -88,6 +92,10 @@ class TiendaWisaData {
   final String direccion;
   final String ciudad;
   final LatLng ubicacion;
+  final String? placeId;
+  final String fuente;
+  final int? radioBusquedaMetros;
+  final double? rating;
 
   String get etiquetaCompleta =>
       '$nombre — $ciudad, ${MapsConfig.departamento}';
