@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "203345627146",
+    "project_id": "minimarket-b6655",
+    "storage_bucket": "minimarket-b6655.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:203345627146:android:f9a0bfb536473d9fc2b7f3",
+        "android_client_info": {
+          "package_name": "com.minimarket.minimarket"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEbnF5LLUTS6OtraZ23AEGYuKQJpljYGM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
